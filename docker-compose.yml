@@ -1,0 +1,83 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: leanstock-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      APP_PORT: 3000
+      APP_HOST: 0.0.0.0
+      DATABASE_URL: postgresql://leanstock:leanstock_pass@postgres:5432/leanstock
+      JWT_SECRET: dev-jwt-secret-min-32-chars-change-in-production-please
+      JWT_REFRESH_SECRET: dev-refresh-secret-min-32-chars-change-in-production-please
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      CORS_ORIGIN: http://localhost:3001
+      RATE_LIMIT_AUTH_MAX: 5
+      RATE_LIMIT_AUTH_WINDOW_MS: 60000
+      BCRYPT_ROUNDS: 10
+      DEAD_STOCK_THRESHOLD_DAYS: 30
+      DEAD_STOCK_DECAY_PERCENT: 10
+      DEAD_STOCK_DECAY_MAX_PERCENT: 50
+      CRON_ENABLED: true
+      DEAD_STOCK_DECAY_SCHEDULE: "0 2 * * *"
+      DEFAULT_PAGE_SIZE: 20
+      MAX_PAGE_SIZE: 100
+      APP_LOG_LEVEL: info
+      SYSTEM_USER_ID: system
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - leanstock-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: leanstock-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: leanstock
+      POSTGRES_PASSWORD: leanstock_pass
+      POSTGRES_DB: leanstock
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leanstock -d leanstock"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - leanstock-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: leanstock-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@leanstock.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - leanstock-network
+    profiles:
+      - tools
+
+volumes:
+  postgres-data:
+
+networks:
+  leanstock-network:
+    driver: bridge

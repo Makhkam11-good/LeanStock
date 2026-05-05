@@ -1,0 +1,916 @@
+openapi: 3.0.3
+info:
+  title: LeanStock Inventory Management API
+  description: |
+    Multi-tenant inventory management system with atomic stock transfers,
+    dead stock decay automation, and role-based access control.
+  version: 1.0.0
+  contact:
+    name: LeanStock Team
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Authentication & authorization (JWT + RBAC)
+  - name: Products
+    description: Product catalog CRUD
+  - name: Inventory
+    description: Inventory management with atomic transfers
+  - name: Warehouses
+    description: Warehouse management
+  - name: Locations
+    description: Location management within warehouses
+  - name: Reports
+    description: Dead stock decay, analytics & reports
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Validation failed
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+
+    Pagination:
+      type: object
+      properties:
+        has_more:
+          type: boolean
+          example: true
+        next_cursor:
+          type: string
+          nullable: true
+          example: eyJpZCI6ImNseDEyMyJ9
+        count:
+          type: integer
+          example: 20
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: clx1a2b3c0001
+        email:
+          type: string
+          example: manager@leanstock.com
+        first_name:
+          type: string
+          example: John
+        last_name:
+          type: string
+          example: Doe
+        role:
+          type: string
+          enum: [MANAGER, WAREHOUSE_OPERATOR, AUDITOR, SYSTEM_ADMIN]
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        sku:
+          type: string
+          example: WDG-001
+        name:
+          type: string
+          example: Industrial Widget
+        description:
+          type: string
+        category:
+          type: string
+          example: Electronics
+        base_price:
+          type: number
+          format: decimal
+          example: 99.99
+        discount_percentage:
+          type: integer
+          example: 0
+        is_discontinued:
+          type: boolean
+        sold_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    Inventory:
+      type: object
+      properties:
+        id:
+          type: string
+        product_id:
+          type: string
+        location_id:
+          type: string
+        quantity_on_hand:
+          type: integer
+          example: 150
+        quantity_reserved:
+          type: integer
+          example: 10
+        reorder_point:
+          type: integer
+          example: 50
+        max_stock_level:
+          type: integer
+          example: 500
+        last_sold_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    Warehouse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          example: Main Almaty Warehouse
+        country:
+          type: string
+        city:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, CLOSED, MAINTENANCE]
+
+    Location:
+      type: object
+      properties:
+        id:
+          type: string
+        warehouse_id:
+          type: string
+        name:
+          type: string
+          example: Aisle A Row 1
+        capacity_units:
+          type: integer
+        current_volume:
+          type: integer
+
+paths:
+  # ═══════════════════════ AUTH ═══════════════════════
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      description: Creates a new user account. Rate limited (5/min per IP).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, first_name, last_name]
+              properties:
+                email:
+                  type: string
+                  example: john.doe@leanstock.com
+                password:
+                  type: string
+                  minLength: 8
+                  example: SecurePass123
+                first_name:
+                  type: string
+                  example: John
+                last_name:
+                  type: string
+                  example: Doe
+                phone:
+                  type: string
+                  example: "+77001234567"
+                role:
+                  type: string
+                  enum: [MANAGER, WAREHOUSE_OPERATOR, AUDITOR, SYSTEM_ADMIN]
+                  default: WAREHOUSE_OPERATOR
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limited
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and receive JWT tokens
+      description: Verifies credentials. Returns access token (15min) and refresh token (7 days). Rate limited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  example: john.doe@leanstock.com
+                password:
+                  type: string
+                  example: SecurePass123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      access_token:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIs...
+                      refresh_token:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIs...
+                      token_type:
+                        type: string
+                        example: Bearer
+                      user:
+                        $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+        '429':
+          description: Rate limited
+
+  /auth/refresh-token:
+    post:
+      tags: [Auth]
+      summary: Exchange refresh token for new access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+                  example: eyJhbGciOiJIUzI1NiIs...
+      responses:
+        '200':
+          description: New access token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      access_token:
+                        type: string
+                      token_type:
+                        type: string
+                        example: Bearer
+        '401':
+          description: Invalid or revoked refresh token
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout and revoke refresh token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Logged out successfully
+
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change password (requires auth)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          description: Password changed
+        '401':
+          description: Current password incorrect
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Not authenticated
+
+  # ═══════════════════════ PRODUCTS ═══════════════════════
+  /products:
+    get:
+      tags: [Products]
+      summary: List products (cursor-paginated)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: after
+          in: query
+          schema:
+            type: string
+          description: Cursor for next page
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: is_discontinued
+          in: query
+          schema:
+            type: string
+            enum: ['true', 'false']
+      responses:
+        '200':
+          description: Paginated product list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Insufficient permissions
+
+    post:
+      tags: [Products]
+      summary: Create a product (MANAGER only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku, name, category, base_price]
+              properties:
+                sku:
+                  type: string
+                  example: WDG-001
+                name:
+                  type: string
+                  example: Industrial Widget
+                description:
+                  type: string
+                category:
+                  type: string
+                  example: Electronics
+                base_price:
+                  type: number
+                  example: 99.99
+                discount_percentage:
+                  type: integer
+                  default: 0
+      responses:
+        '201':
+          description: Product created
+        '403':
+          description: Only MANAGER/SYSTEM_ADMIN can create products
+        '409':
+          description: SKU already exists
+        '422':
+          description: Validation error
+
+  /products/{id}:
+    get:
+      tags: [Products]
+      summary: Get product by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product details
+        '404':
+          description: Product not found
+
+    patch:
+      tags: [Products]
+      summary: Update product (MANAGER only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                category:
+                  type: string
+                base_price:
+                  type: number
+      responses:
+        '200':
+          description: Product updated
+        '403':
+          description: Insufficient permissions
+        '404':
+          description: Product not found
+
+  # ═══════════════════════ INVENTORY ═══════════════════════
+  /inventory:
+    get:
+      tags: [Inventory]
+      summary: List inventory (cursor-paginated)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: after
+          in: query
+          schema:
+            type: string
+        - name: product_id
+          in: query
+          schema:
+            type: string
+        - name: location_id
+          in: query
+          schema:
+            type: string
+        - name: low_stock
+          in: query
+          schema:
+            type: string
+            enum: ['true']
+      responses:
+        '200':
+          description: Paginated inventory list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Inventory'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /inventory/transfer:
+    post:
+      tags: [Inventory]
+      summary: Atomic stock transfer (SELECT FOR UPDATE)
+      description: |
+        Transfers stock between two locations within an atomic database transaction.
+        Uses PostgreSQL SELECT FOR UPDATE to prevent race conditions and overselling.
+        Preserves FIFO lot lineage during transfer.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_id, from_location_id, to_location_id, quantity]
+              properties:
+                product_id:
+                  type: string
+                from_location_id:
+                  type: string
+                to_location_id:
+                  type: string
+                quantity:
+                  type: integer
+                  minimum: 1
+                  example: 50
+                reason:
+                  type: string
+            example:
+              product_id: clxabc123
+              from_location_id: clxloc001
+              to_location_id: clxloc002
+              quantity: 50
+              reason: Rebalancing between warehouses
+      responses:
+        '201':
+          description: Transfer completed atomically
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      movement:
+                        type: object
+                      transferred_quantity:
+                        type: integer
+        '409':
+          description: Insufficient stock or capacity exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Insufficient permissions
+
+  /inventory/receive:
+    post:
+      tags: [Inventory]
+      summary: Receive incoming stock
+      description: Creates inventory record, lot with FIFO tracking, and movement record.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_id, location_id, quantity, unit_cost, movement_type]
+              properties:
+                product_id:
+                  type: string
+                location_id:
+                  type: string
+                movement_type:
+                  type: string
+                  enum: [INCOMING]
+                quantity:
+                  type: integer
+                  minimum: 1
+                  example: 100
+                unit_cost:
+                  type: number
+                  example: 25.00
+                lot_code:
+                  type: string
+                  example: LOT-2026-04-001
+      responses:
+        '201':
+          description: Stock received
+        '422':
+          description: Validation error
+
+  /inventory/{id}/reserve:
+    post:
+      tags: [Inventory]
+      summary: Reserve inventory (SELECT FOR UPDATE)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+      responses:
+        '200':
+          description: Inventory reserved
+        '409':
+          description: Insufficient stock to reserve
+
+  /inventory/{id}/release-reservation:
+    post:
+      tags: [Inventory]
+      summary: Release reserved inventory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+      responses:
+        '200':
+          description: Reservation released
+
+  # ═══════════════════════ WAREHOUSES ═══════════════════════
+  /warehouses:
+    get:
+      tags: [Warehouses]
+      summary: List warehouses (cursor-paginated)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Warehouse list
+
+    post:
+      tags: [Warehouses]
+      summary: Create warehouse (MANAGER only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, country, city]
+              properties:
+                name:
+                  type: string
+                  example: Main Almaty Warehouse
+                country:
+                  type: string
+                  example: Kazakhstan
+                city:
+                  type: string
+                  example: Almaty
+      responses:
+        '201':
+          description: Warehouse created
+        '409':
+          description: Duplicate name
+
+  /warehouses/{id}:
+    get:
+      tags: [Warehouses]
+      summary: Get warehouse by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Warehouse details
+        '404':
+          description: Not found
+
+  # ═══════════════════════ LOCATIONS ═══════════════════════
+  /locations:
+    get:
+      tags: [Locations]
+      summary: List locations (cursor-paginated)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: warehouse_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Location list
+
+    post:
+      tags: [Locations]
+      summary: Create location (MANAGER only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [warehouse_id, name]
+              properties:
+                warehouse_id:
+                  type: string
+                name:
+                  type: string
+                  example: Aisle A Row 1
+                address:
+                  type: string
+                capacity_units:
+                  type: integer
+                  default: 1000
+      responses:
+        '201':
+          description: Location created
+
+  # ═══════════════════════ REPORTS ═══════════════════════
+  /reports/dead-stock:
+    get:
+      tags: [Reports]
+      summary: Dead stock report (lots older than threshold)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: threshold_days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        '200':
+          description: Dead stock lot list
+
+  /reports/decay-history:
+    get:
+      tags: [Reports]
+      summary: Decay audit history
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: string
+        - name: location_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Decay history list
+
+  /reports/low-stock:
+    get:
+      tags: [Reports]
+      summary: Low stock report
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Low stock items
+
+  /reports/trigger-decay:
+    post:
+      tags: [Reports]
+      summary: Manually trigger dead stock decay (MANAGER only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Decay job result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      processed:
+                        type: integer
+                      skipped:
+                        type: integer
