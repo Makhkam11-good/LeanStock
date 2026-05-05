@@ -138,7 +138,7 @@ describe('JWT Utilities', () => {
 describe('Error Classes', () => {
   const {
     AppError, ValidationError, AuthenticationError, AuthorizationError,
-    NotFoundError, ConflictError, InsufficientStockError,
+    NotFoundError, InsufficientStockError,
   } = require('../../../src/utils/errors');
 
   test('AppError has correct properties', () => {

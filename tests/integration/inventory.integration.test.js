@@ -8,7 +8,6 @@ const { getPrismaClient, disconnectPrisma } = require('../../src/config/database
 
 let prisma;
 let managerToken;
-let managerId;
 
 const unique = Date.now();
 
@@ -16,7 +15,7 @@ beforeAll(async () => {
   prisma = getPrismaClient();
 
   // Register and login a manager for inventory tests
-  const regRes = await request(app)
+  await request(app)
     .post('/api/v1/auth/register')
     .send({
       email: `inventorytest-manager-${unique}@example.com`,
@@ -25,7 +24,6 @@ beforeAll(async () => {
       last_name: 'Manager',
       role: 'MANAGER',
     });
-  managerId = regRes.body.data?.id;
 
   const loginRes = await request(app)
     .post('/api/v1/auth/login')
@@ -40,6 +38,8 @@ beforeAll(async () => {
 afterAll(async () => {
   // Cleanup
   await prisma.refreshToken.deleteMany({ where: { user: { email: { contains: 'inventorytest' } } } });
+  await prisma.auditLog.deleteMany({ where: { user: { email: { contains: 'inventorytest' } } } });
+  await prisma.stockMovement.deleteMany({ where: { user: { email: { contains: 'inventorytest' } } } });
   await prisma.user.deleteMany({ where: { email: { contains: 'inventorytest' } } });
   await disconnectPrisma();
 });

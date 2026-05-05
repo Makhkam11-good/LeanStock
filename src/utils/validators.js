@@ -69,6 +69,7 @@ const transferStockSchema = z.object({
 
 const createMovementSchema = z.object({
   product_id: z.string().min(1),
+  location_id: z.string().min(1),
   movement_type: z.enum(['INCOMING', 'OUTGOING', 'TRANSFER', 'ADJUSTMENT', 'WRITE_OFF']),
   quantity: z.number().int().positive(),
   from_location_id: z.string().optional(),

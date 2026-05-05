@@ -1,11 +1,12 @@
 'use strict';
 
 const jwt = require('jsonwebtoken');
+const { randomUUID } = require('crypto');
 const { JWT_SECRET, JWT_REFRESH_SECRET, JWT_ACCESS_EXPIRES_IN, JWT_REFRESH_EXPIRES_IN } = require('../config/env');
 const { AuthenticationError } = require('./errors');
 
 function signAccessToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_ACCESS_EXPIRES_IN });
+  return jwt.sign({ ...payload, jti: randomUUID() }, JWT_SECRET, { expiresIn: JWT_ACCESS_EXPIRES_IN });
 }
 
 function signRefreshToken(payload) {

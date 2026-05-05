@@ -11,7 +11,10 @@ if (fs.existsSync(envTestPath)) {
     if (line.trim() && !line.startsWith('#')) {
       const [key, ...rest] = line.split('=');
       if (key && rest.length > 0) {
-        process.env[key.trim()] = rest.join('=').trim();
+        const envKey = key.trim();
+        if (process.env[envKey] === undefined) {
+          process.env[envKey] = rest.join('=').trim();
+        }
       }
     }
   }
