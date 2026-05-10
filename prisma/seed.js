@@ -11,7 +11,7 @@ async function seed() {
   // ── System user for decay automation ──
   const systemUser = await prisma.user.upsert({
     where: { email: 'system@leanstock.internal' },
-    update: {},
+    update: { is_active: false, is_email_verified: true },
     create: {
       id: 'system',
       email: 'system@leanstock.internal',
@@ -19,15 +19,31 @@ async function seed() {
       first_name: 'System',
       last_name: 'Automation',
       role: 'SYSTEM_ADMIN',
-      is_active: true,
+      is_active: false,
+      is_email_verified: true,
     },
   });
   console.log('  ✓ System user created:', systemUser.email);
 
   // ── Manager user ──
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@leanstock.com' },
+    update: { role: 'SYSTEM_ADMIN', is_active: true, is_email_verified: true },
+    create: {
+      email: 'admin@leanstock.com',
+      password_hash: await bcrypt.hash('Admin123', 10),
+      first_name: 'System',
+      last_name: 'Admin',
+      role: 'SYSTEM_ADMIN',
+      is_active: true,
+      is_email_verified: true,
+    },
+  });
+  console.log('  Admin created:', admin.email);
+
   const manager = await prisma.user.upsert({
     where: { email: 'manager@leanstock.com' },
-    update: {},
+    update: { is_email_verified: true },
     create: {
       email: 'manager@leanstock.com',
       password_hash: await bcrypt.hash('Manager123', 10),
@@ -35,6 +51,7 @@ async function seed() {
       last_name: 'Manager',
       role: 'MANAGER',
       is_active: true,
+      is_email_verified: true,
     },
   });
   console.log('  ✓ Manager created:', manager.email);
@@ -42,7 +59,7 @@ async function seed() {
   // ── Operator user ──
   const operator = await prisma.user.upsert({
     where: { email: 'operator@leanstock.com' },
-    update: {},
+    update: { is_email_verified: true },
     create: {
       email: 'operator@leanstock.com',
       password_hash: await bcrypt.hash('Operator123', 10),
@@ -50,6 +67,7 @@ async function seed() {
       last_name: 'Operator',
       role: 'WAREHOUSE_OPERATOR',
       is_active: true,
+      is_email_verified: true,
     },
   });
   console.log('  ✓ Operator created:', operator.email);
@@ -57,7 +75,7 @@ async function seed() {
   // ── Auditor user ──
   const auditor = await prisma.user.upsert({
     where: { email: 'auditor@leanstock.com' },
-    update: {},
+    update: { is_email_verified: true },
     create: {
       email: 'auditor@leanstock.com',
       password_hash: await bcrypt.hash('Auditor123', 10),
@@ -65,6 +83,7 @@ async function seed() {
       last_name: 'Auditor',
       role: 'AUDITOR',
       is_active: true,
+      is_email_verified: true,
     },
   });
   console.log('  ✓ Auditor created:', auditor.email);
@@ -167,6 +186,7 @@ async function seed() {
 
   console.log('\n🎉 Seed complete! Ready for testing.');
   console.log('\n📝 Test accounts:');
+  console.log('   Admin:    admin@leanstock.com / Admin123');
   console.log('   Manager:  manager@leanstock.com / Manager123');
   console.log('   Operator: operator@leanstock.com / Operator123');
   console.log('   Auditor:  auditor@leanstock.com / Auditor123');

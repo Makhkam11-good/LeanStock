@@ -13,6 +13,8 @@ const registerSchema = z.object({
   role: z.enum(['MANAGER', 'WAREHOUSE_OPERATOR', 'AUDITOR', 'SYSTEM_ADMIN']).optional(),
 });
 
+const signupSchema = registerSchema.omit({ role: true });
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -27,12 +29,36 @@ const changePasswordSchema = z.object({
   new_password: z.string().min(8),
 });
 
+const verifyEmailSchema = z.object({
+  token: z.string().min(20),
+});
+
+const requestPasswordResetSchema = z.object({
+  email: z.string().email(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(20),
+  new_password: z.string().min(8),
+});
+
+const resendVerificationSchema = z.object({
+  email: z.string().email(),
+});
+
 // ── Warehouse ─────────────────────────────────────────────────────────────────
 
 const createWarehouseSchema = z.object({
   name: z.string().min(1).max(200),
   country: z.string().min(1).max(100),
   city: z.string().min(1).max(100),
+});
+
+const updateWarehouseSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  country: z.string().min(1).max(100).optional(),
+  city: z.string().min(1).max(100).optional(),
+  status: z.enum(['ACTIVE', 'CLOSED', 'MAINTENANCE']).optional(),
 });
 
 // ── Location ──────────────────────────────────────────────────────────────────
@@ -70,21 +96,27 @@ const transferStockSchema = z.object({
 const createMovementSchema = z.object({
   product_id: z.string().min(1),
   location_id: z.string().min(1),
-  movement_type: z.enum(['INCOMING', 'OUTGOING', 'TRANSFER', 'ADJUSTMENT', 'WRITE_OFF']),
+  movement_type: z.literal('INCOMING'),
   quantity: z.number().int().positive(),
   from_location_id: z.string().optional(),
   to_location_id: z.string().optional(),
   reason: z.string().optional(),
   lot_code: z.string().optional(),
-  unit_cost: z.number().positive().optional(),
+  unit_cost: z.number().positive(),
 });
 
 module.exports = {
   registerSchema,
+  signupSchema,
   loginSchema,
   refreshTokenSchema,
   changePasswordSchema,
+  verifyEmailSchema,
+  requestPasswordResetSchema,
+  resetPasswordSchema,
+  resendVerificationSchema,
   createWarehouseSchema,
+  updateWarehouseSchema,
   createLocationSchema,
   createProductSchema,
   updateProductSchema,

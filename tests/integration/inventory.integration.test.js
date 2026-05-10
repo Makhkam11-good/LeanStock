@@ -3,6 +3,7 @@
 require('../setup/env.setup');
 
 const request = require('supertest');
+const bcrypt = require('bcryptjs');
 const app = require('../../src/app');
 const { getPrismaClient, disconnectPrisma } = require('../../src/config/database');
 
@@ -14,16 +15,19 @@ const unique = Date.now();
 beforeAll(async () => {
   prisma = getPrismaClient();
 
-  // Register and login a manager for inventory tests
-  await request(app)
-    .post('/api/v1/auth/register')
-    .send({
+  // Create and login a manager for inventory tests.
+  const password_hash = await bcrypt.hash('SecurePass123', 4);
+  await prisma.user.create({
+    data: {
       email: `inventorytest-manager-${unique}@example.com`,
-      password: 'SecurePass123',
+      password_hash,
       first_name: 'Inv',
       last_name: 'Manager',
       role: 'MANAGER',
-    });
+      is_active: true,
+      is_email_verified: true,
+    },
+  });
 
   const loginRes = await request(app)
     .post('/api/v1/auth/login')
@@ -129,7 +133,47 @@ describe('Warehouse & Location API', () => {
     locationBId = res.body.data.id;
   });
 
-  describe('Inventory Transfer (SELECT FOR UPDATE - Atomicity Test)', () => {
+  test('hides a warehouse instead of deleting it', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/warehouses')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ name: `Hidden Warehouse ${unique}`, country: 'Kazakhstan', city: 'Astana' });
+
+    expect(createRes.status).toBe(201);
+    const hiddenWarehouseId = createRes.body.data.id;
+
+    const deleteRes = await request(app)
+      .delete(`/api/v1/warehouses/${hiddenWarehouseId}`)
+      .set('Authorization', `Bearer ${managerToken}`);
+
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.data.id).toBe(hiddenWarehouseId);
+    expect(deleteRes.body.data.is_hidden).toBe(true);
+    expect(deleteRes.body.data.hidden_at).toBeTruthy();
+    expect(deleteRes.body.data.status).toBe('CLOSED');
+
+    const getRes = await request(app)
+      .get(`/api/v1/warehouses/${hiddenWarehouseId}`)
+      .set('Authorization', `Bearer ${managerToken}`);
+
+    expect(getRes.status).toBe(404);
+
+    const listRes = await request(app)
+      .get('/api/v1/warehouses?limit=50')
+      .set('Authorization', `Bearer ${managerToken}`);
+
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.data.some(warehouse => warehouse.id === hiddenWarehouseId)).toBe(false);
+
+    const locationRes = await request(app)
+      .post('/api/v1/locations')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ warehouse_id: hiddenWarehouseId, name: `Hidden Location ${unique}`, capacity_units: 100 });
+
+    expect(locationRes.status).toBe(409);
+  });
+
+  describe('Inventory Transfer (Atomicity Test)', () => {
     test('receives stock at location A', async () => {
       // First create a product
       const prodRes = await request(app)

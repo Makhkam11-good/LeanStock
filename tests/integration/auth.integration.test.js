@@ -3,10 +3,12 @@
 require('../setup/env.setup');
 
 const request = require('supertest');
+const bcrypt = require('bcryptjs');
 const app = require('../../src/app');
 const { getPrismaClient, disconnectPrisma } = require('../../src/config/database');
 
 let prisma;
+let adminToken;
 
 beforeAll(async () => {
   prisma = getPrismaClient();
@@ -14,6 +16,24 @@ beforeAll(async () => {
   await prisma.refreshToken.deleteMany({});
   await prisma.auditLog.deleteMany({});
   await prisma.user.deleteMany({ where: { email: { contains: 'integrationtest' } } });
+
+  const password_hash = await bcrypt.hash('AdminPass123', 4);
+  await prisma.user.create({
+    data: {
+      email: 'integrationtest-admin@example.com',
+      password_hash,
+      first_name: 'Integration',
+      last_name: 'Admin',
+      role: 'SYSTEM_ADMIN',
+      is_active: true,
+      is_email_verified: true,
+    },
+  });
+
+  const loginRes = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'integrationtest-admin@example.com', password: 'AdminPass123' });
+  adminToken = loginRes.body.data.access_token;
 });
 
 afterAll(async () => {
@@ -36,9 +56,19 @@ describe('Auth API Integration Tests', () => {
   // ── Registration ─────────────────────────────────────────────────────────────
 
   describe('POST /api/v1/auth/register', () => {
-    test('registers a new user successfully', async () => {
+    test('rejects unauthenticated user creation', async () => {
       const res = await request(app)
         .post('/api/v1/auth/register')
+        .send(testUser);
+
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('allows SYSTEM_ADMIN to create a user successfully', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/register')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send(testUser);
 
       expect(res.status).toBe(201);
@@ -50,6 +80,7 @@ describe('Auth API Integration Tests', () => {
     test('rejects duplicate email with 409', async () => {
       const res = await request(app)
         .post('/api/v1/auth/register')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send(testUser);
 
       expect(res.status).toBe(409);
@@ -59,6 +90,7 @@ describe('Auth API Integration Tests', () => {
     test('rejects invalid email', async () => {
       const res = await request(app)
         .post('/api/v1/auth/register')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ ...testUser, email: 'not-an-email' });
 
       expect(res.status).toBe(422);
@@ -67,9 +99,46 @@ describe('Auth API Integration Tests', () => {
     test('rejects weak password', async () => {
       const res = await request(app)
         .post('/api/v1/auth/register')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ ...testUser, email: 'new@integrationtest.com', password: 'weak' });
 
       expect([400, 422]).toContain(res.status);
+    });
+  });
+
+  describe('POST /api/v1/auth/signup and email verification', () => {
+    const signupUser = {
+      email: `integrationtest.signup.${Date.now()}@example.com`,
+      password: 'SecurePass123',
+      first_name: 'Signup',
+      last_name: 'User',
+    };
+
+    test('creates an unverified self-service account', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/signup')
+        .send(signupUser);
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.is_email_verified).toBe(false);
+      expect(res.body.data.verification_required).toBe(true);
+      expect(res.body.data.verification_token).toBeDefined();
+
+      const loginBeforeVerify = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: signupUser.email, password: signupUser.password });
+      expect(loginBeforeVerify.status).toBe(401);
+
+      const verifyRes = await request(app)
+        .post('/api/v1/auth/verify-email')
+        .send({ token: res.body.data.verification_token });
+      expect(verifyRes.status).toBe(200);
+      expect(verifyRes.body.data.is_email_verified).toBe(true);
+
+      const loginAfterVerify = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: signupUser.email, password: signupUser.password });
+      expect(loginAfterVerify.status).toBe(200);
     });
   });
 
@@ -170,7 +239,16 @@ describe('Auth API Integration Tests', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.access_token).toBeDefined();
+      expect(res.body.data.refresh_token).toBeDefined();
       expect(res.body.data.access_token).not.toBe(accessToken);
+
+      const oldTokenAttempt = await request(app)
+        .post('/api/v1/auth/refresh-token')
+        .send({ refresh_token: refreshToken });
+      expect(oldTokenAttempt.status).toBe(401);
+
+      accessToken = res.body.data.access_token;
+      refreshToken = res.body.data.refresh_token;
     });
 
     test('rejects invalid refresh token', async () => {
@@ -198,6 +276,44 @@ describe('Auth API Integration Tests', () => {
         .send({ refresh_token: refreshToken });
 
       expect(refreshAttempt.status).toBe(401);
+    });
+  });
+
+  describe('Password reset via email token', () => {
+    test('resets password using queued reset token', async () => {
+      const resetRequest = await request(app)
+        .post('/api/v1/auth/request-password-reset')
+        .send({ email: testUser.email });
+
+      expect(resetRequest.status).toBe(200);
+      expect(resetRequest.body.data.reset_token).toBeDefined();
+
+      const reset = await request(app)
+        .post('/api/v1/auth/reset-password')
+        .send({
+          token: resetRequest.body.data.reset_token,
+          new_password: 'SecurePass456',
+        });
+
+      expect(reset.status).toBe(200);
+
+      const secondUse = await request(app)
+        .post('/api/v1/auth/reset-password')
+        .send({
+          token: resetRequest.body.data.reset_token,
+          new_password: 'SecurePass789',
+        });
+      expect(secondUse.status).toBe(401);
+
+      const loginOldPassword = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: testUser.email, password: testUser.password });
+      expect(loginOldPassword.status).toBe(401);
+
+      const loginNewPassword = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: testUser.email, password: 'SecurePass456' });
+      expect(loginNewPassword.status).toBe(200);
     });
   });
 });

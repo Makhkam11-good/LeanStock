@@ -8,9 +8,10 @@ Production-grade backend for multi-tenant inventory management with atomic stock
 |-----------|--------|---------|
 | Runtime | Node.js 20+ | Async I/O for concurrent inventory ops |
 | Framework | Express.js 4.18 | REST API with middleware ecosystem |
-| Database | PostgreSQL 15+ | ACID transactions, SELECT FOR UPDATE |
+| Database | PostgreSQL 15+ | ACID transactions and durable persistence |
 | ORM | Prisma 5.x | Type-safe queries, migrations |
-| Auth | JWT + bcrypt | Stateless auth with refresh tokens |
+| Auth | JWT + bcrypt | Email verification, password reset, refresh rotation |
+| Queue | Redis | Async email delivery and dead-stock decay jobs |
 | Validation | Zod | Runtime request/response validation |
 | Docs | Swagger UI | Interactive API documentation |
 | Testing | Jest + Supertest | Unit + integration tests |
@@ -20,9 +21,9 @@ Production-grade backend for multi-tenant inventory management with atomic stock
 
 ```bash
 # Clone the repository
-git clone <repo-url> && cd leanstock
+git clone https://github.com/Makhkam11-good/LeanStock.git && cd LeanStock
 
-# Start everything (API + PostgreSQL)
+# Start everything (API + worker + PostgreSQL + Redis)
 docker compose up --build
 
 # The API will:
@@ -33,7 +34,7 @@ docker compose up --build
 
 **Endpoints after startup:**
 - API: `http://localhost:3000/api/v1`
-- Swagger UI: `http://localhost:3000/api-docs`
+- Swagger UI: `http://localhost:3000/docs` or `http://localhost:3000/api-docs`
 - Health check: `http://localhost:3000/health`
 
 ## Quick Start (Local Development)
@@ -45,8 +46,8 @@ npm install
 # 2. Copy environment template
 cp .env.example .env
 
-# 3. Start PostgreSQL (via Docker or local install)
-docker compose up postgres -d
+# 3. Start PostgreSQL and Redis (via Docker or local install)
+docker compose up postgres redis -d
 
 # 4. Generate Prisma client
 npx prisma generate
@@ -59,6 +60,9 @@ npm run db:seed
 
 # 7. Start the server
 npm run dev
+
+# 8. In a second terminal, process async email/decay jobs
+npm run worker
 ```
 
 ## Seed Accounts
@@ -67,19 +71,24 @@ After running `npm run db:seed`:
 
 | Role | Email | Password |
 |------|-------|----------|
+| Admin | admin@leanstock.com | Admin123 |
 | Manager | manager@leanstock.com | Manager123 |
 | Operator | operator@leanstock.com | Operator123 |
 | Auditor | auditor@leanstock.com | Auditor123 |
 
 ## API Endpoints
 
-### Auth (rate limited: 5 req/min on login & register)
+### Auth
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| POST | /api/v1/auth/register | - | Create account |
+| POST | /api/v1/auth/signup | - | Public signup, queues verification email |
+| POST | /api/v1/auth/register | Bearer (SYSTEM_ADMIN) | Create user and assign role |
 | POST | /api/v1/auth/login | - | Get JWT tokens |
-| POST | /api/v1/auth/refresh-token | - | Refresh access token |
+| POST | /api/v1/auth/refresh-token | - | Rotate refresh token and issue access token |
 | POST | /api/v1/auth/logout | - | Revoke refresh token |
+| POST/GET | /api/v1/auth/verify-email | - | Verify signup email token |
+| POST | /api/v1/auth/request-password-reset | - | Queue password reset email |
+| POST | /api/v1/auth/reset-password | - | Reset password with email token |
 | POST | /api/v1/auth/change-password | Bearer | Change password |
 | GET | /api/v1/auth/me | Bearer | Current user profile |
 
@@ -92,7 +101,7 @@ After running `npm run db:seed`:
 | PATCH | /api/v1/products/:id | Bearer (MANAGER) | Update |
 | POST | /api/v1/products/:id/discontinue | Bearer (MANAGER) | Discontinue |
 
-### Inventory (SELECT FOR UPDATE atomicity)
+### Inventory (atomicity)
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | /api/v1/inventory | Bearer | List (cursor-paginated) |
@@ -117,15 +126,19 @@ After running `npm run db:seed`:
 | GET | /api/v1/reports/dead-stock | Bearer | Dead stock lots |
 | GET | /api/v1/reports/decay-history | Bearer | Decay audit trail |
 | GET | /api/v1/reports/low-stock | Bearer | Low stock alerts |
-| POST | /api/v1/reports/trigger-decay | Bearer (MANAGER) | Manual decay |
+| POST | /api/v1/reports/trigger-decay | Bearer (MANAGER) | Queue manual decay job |
+| GET | /api/v1/jobs/:id | Bearer (MANAGER) | Inspect queued/completed/failed job |
 
 ## Architecture Decisions
 
-### Atomic Stock Transfer (SELECT FOR UPDATE)
-All inventory transfers run inside a serializable Prisma `$transaction` with `FOR UPDATE` row locks. This prevents:
+### Atomic Stock Transfer
+All inventory transfers run inside a serializable Prisma `$transaction` with optimistic conditional updates. This prevents:
 - Overselling (two concurrent transfers depleting same stock)
 - Data inconsistency between aggregate inventory and lot-level records
 - FIFO lineage breaks during concurrent lot consumption
+
+### Email and Background Jobs
+Signup verification, password reset, stock receipt, stock transfer, and dead-stock decay alerts are enqueued through Redis. The API returns quickly, while `npm run worker` delivers emails through the configured provider. Local development uses `EMAIL_PROVIDER=mock`; production should use `EMAIL_PROVIDER=sendgrid` with `SENDGRID_API_KEY`.
 
 ### Dead Stock Decay (Lot-Level)
 Decay targets individual inventory lots, not products. A product can be "fresh" in one warehouse and "stale" in another. The cron runs daily at 02:00 UTC and:
@@ -151,11 +164,20 @@ npm test
 # Unit tests only
 npm run test:unit
 
-# Integration tests only (requires running PostgreSQL)
+# Integration tests only (requires PostgreSQL and migrated leanstock_test)
 npm run test:integration
 
 # With coverage
 npm run test:coverage
+```
+
+For local integration tests, the Docker Postgres init script creates `leanstock_test` on a fresh volume. Apply migrations to that database before running the full suite:
+
+```bash
+docker compose up -d postgres redis
+$env:DATABASE_URL="postgresql://leanstock:leanstock_pass@localhost:5432/leanstock_test"
+npx prisma migrate deploy
+npm test
 ```
 
 ## Environment Variables
@@ -165,13 +187,16 @@ See `.env.example` for all variables. Critical ones that **must** be set:
 - `JWT_SECRET` — Access token signing key (min 32 chars)
 - `JWT_REFRESH_SECRET` — Refresh token signing key (min 32 chars)
 - `NODE_ENV` — development | test | production
+- `REDIS_URL` - Redis connection for background jobs
+- `APP_BASE_URL` - Public API base URL used in email links
+- `EMAIL_FROM` / `SENDGRID_API_KEY` - real email delivery configuration
 
 The app **refuses to start** if critical secrets are missing.
 
 ## Project Structure
 
 ```
-leanstock/
+LeanStock/
 ├── prisma/              # Schema & migrations (source of truth)
 │   ├── schema.prisma
 │   ├── seed.js

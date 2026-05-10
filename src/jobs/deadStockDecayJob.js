@@ -1,7 +1,8 @@
 'use strict';
 
 const cron = require('node-cron');
-const { applyDeadStockDecay } = require('../services/decayService');
+const { enqueueJob } = require('./redisQueue');
+const { QUEUE_DECAY_NAME } = require('../config/env');
 const logger = require('../utils/logger');
 
 let decayJob = null;
@@ -23,8 +24,8 @@ function startDecayJob() {
   decayJob = cron.schedule(CRON_SCHEDULE, async () => {
     logger.info('[CronScheduler] Dead stock decay job triggered');
     try {
-      const result = await applyDeadStockDecay();
-      logger.info(`[CronScheduler] Decay job completed: ${JSON.stringify(result)}`);
+      const job = await enqueueJob(QUEUE_DECAY_NAME, 'dead-stock.decay', { scheduled: true });
+      logger.info(`[CronScheduler] Decay job queued: ${job.id}`);
     } catch (err) {
       logger.error(`[CronScheduler] Decay job failed: ${err.message}`, { stack: err.stack });
     }

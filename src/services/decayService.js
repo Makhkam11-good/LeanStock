@@ -2,57 +2,96 @@
 
 const { getPrismaClient } = require('../config/database');
 const { DEAD_STOCK_THRESHOLD_DAYS, DEAD_STOCK_DECAY_PERCENT, DEAD_STOCK_DECAY_MAX_PERCENT, SYSTEM_USER_ID } = require('../config/env');
+const { enqueueEmail } = require('./emailService');
 const logger = require('../utils/logger');
 
 const prisma = getPrismaClient();
 
-/**
- * Find all inventory lots that qualify for dead stock decay:
- *  - Older than threshold days
- *  - Still have stock
- *  - Not decayed in the last 72 hours
- */
+function daysBetween(start, end = new Date()) {
+  return Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function toDeadStockCandidate(lot) {
+  return {
+    inventory_lot_id: lot.id,
+    lot_code: lot.lot_code,
+    received_at: lot.received_at,
+    quantity_on_hand: lot.quantity_on_hand,
+    last_decay_applied_at: lot.last_decay_applied_at,
+    inventory_id: lot.inventory_id,
+    location_id: lot.inventory.location_id,
+    product_id: lot.inventory.product.id,
+    sku: lot.inventory.product.sku,
+    name: lot.inventory.product.name,
+    base_price: Number(lot.inventory.product.base_price),
+    catalog_discount: lot.inventory.product.discount_percentage,
+    days_in_stock: daysBetween(lot.received_at),
+  };
+}
+
 async function findDeadStockCandidates(thresholdDays = DEAD_STOCK_THRESHOLD_DAYS) {
   const thresholdDate = new Date(Date.now() - thresholdDays * 24 * 60 * 60 * 1000);
   const decayWindowStart = new Date(Date.now() - 72 * 60 * 60 * 1000);
 
-  const candidates = await prisma.$queryRaw`
-    SELECT
-      il.id          AS inventory_lot_id,
-      il.lot_code,
-      il.received_at,
-      il.quantity_on_hand,
-      il.last_decay_applied_at,
-      i.id           AS inventory_id,
-      i.location_id,
-      p.id           AS product_id,
-      p.sku,
-      p.name,
-      CAST(p.base_price AS FLOAT)           AS base_price,
-      p.discount_percentage                 AS catalog_discount,
-      EXTRACT(DAY FROM NOW() - il.received_at)::INT AS days_in_stock
-    FROM "InventoryLot" il
-    JOIN "Inventory" i  ON i.id = il.inventory_id
-    JOIN "Product"   p  ON p.id = i.product_id
-    WHERE p.is_discontinued = false
-      AND il.quantity_on_hand > 0
-      AND il.received_at <= ${thresholdDate}
-      AND (
-        il.last_decay_applied_at IS NULL
-        OR il.last_decay_applied_at <= ${decayWindowStart}
-      )
-    ORDER BY il.received_at ASC
-    LIMIT 100
-  `;
+  const lots = await prisma.inventoryLot.findMany({
+    where: {
+      quantity_on_hand: { gt: 0 },
+      received_at: { lte: thresholdDate },
+      OR: [
+        { last_decay_applied_at: null },
+        { last_decay_applied_at: { lte: decayWindowStart } },
+      ],
+      inventory: {
+        product: { is: { is_discontinued: false } },
+        location: {
+          is: {
+            warehouse: {
+              is: {
+                is_hidden: false,
+                status: 'ACTIVE',
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ received_at: 'asc' }, { created_at: 'asc' }],
+    take: 100,
+    include: {
+      inventory: {
+        include: {
+          product: true,
+          location: { include: { warehouse: true } },
+        },
+      },
+    },
+  });
 
-  return candidates;
+  return lots.map(toDeadStockCandidate);
 }
 
-/**
- * Apply dead stock decay to all qualifying lots.
- * Configurable: decay % and max % from environment variables.
- * Returns stats about what was processed.
- */
+async function queueDecaySummaryEmail(result) {
+  if (!result.processed) return;
+
+  const managers = await prisma.user.findMany({
+    where: {
+      role: { in: ['MANAGER', 'SYSTEM_ADMIN'] },
+      is_active: true,
+      is_email_verified: true,
+    },
+    select: { email: true },
+    take: 20,
+  });
+
+  await Promise.all(managers.map(manager => enqueueEmail({
+    to: manager.email,
+    event_type: 'inventory.dead_stock_decay',
+    subject: 'LeanStock dead stock decay completed',
+    text: `Dead stock decay completed. Processed ${result.processed} lots, skipped ${result.skipped}.`,
+    html: `<p>Dead stock decay completed.</p><p>Processed ${result.processed} lots, skipped ${result.skipped}.</p>`,
+  })));
+}
+
 async function applyDeadStockDecay(options = {}) {
   const decayPercent = options.decayPercent || DEAD_STOCK_DECAY_PERCENT;
   const maxDiscount = options.maxDiscount || DEAD_STOCK_DECAY_MAX_PERCENT;
@@ -65,10 +104,8 @@ async function applyDeadStockDecay(options = {}) {
 
   if (candidates.length === 0) {
     logger.info('[DecayJob] No dead stock candidates found');
-    return { processed: 0, skipped: 0 };
+    return { processed: 0, skipped: 0, total: 0 };
   }
-
-  logger.info(`[DecayJob] Found ${candidates.length} lots to process`);
 
   let processed = 0;
   let skipped = 0;
@@ -81,10 +118,9 @@ async function applyDeadStockDecay(options = {}) {
 
         if (oldDiscount >= maxDiscount) {
           skipped++;
-          return; // Already at max discount, skip
+          return;
         }
 
-        // Create location-scoped price override (keeps global catalog clean)
         await tx.priceHistory.create({
           data: {
             product_id: lot.product_id,
@@ -97,13 +133,19 @@ async function applyDeadStockDecay(options = {}) {
           },
         });
 
-        // Mark lot as decayed
-        await tx.inventoryLot.update({
-          where: { id: lot.inventory_lot_id },
+        const lotUpdate = await tx.inventoryLot.updateMany({
+          where: {
+            id: lot.inventory_lot_id,
+            last_decay_applied_at: lot.last_decay_applied_at,
+          },
           data: { last_decay_applied_at: new Date() },
         });
 
-        // Record decay audit
+        if (lotUpdate.count !== 1) {
+          skipped++;
+          return;
+        }
+
         await tx.decayAudit.create({
           data: {
             inventory_lot_id: lot.inventory_lot_id,
@@ -116,10 +158,6 @@ async function applyDeadStockDecay(options = {}) {
           },
         });
 
-        logger.info(
-          `[DecayJob] ${lot.sku} | lot ${lot.lot_code} | ${oldDiscount}% → ${newDiscount}% | ${lot.days_in_stock} days old`
-        );
-
         processed++;
       });
     } catch (err) {
@@ -128,16 +166,14 @@ async function applyDeadStockDecay(options = {}) {
     }
   }
 
+  const result = { processed, skipped, total: candidates.length };
+  await queueDecaySummaryEmail(result);
   logger.info(`[DecayJob] Decay complete. Processed: ${processed}, Skipped: ${skipped}`);
-  return { processed, skipped, total: candidates.length };
+  return result;
 }
 
-/**
- * Get dead stock report
- */
 async function getDeadStockReport(thresholdDays = DEAD_STOCK_THRESHOLD_DAYS) {
-  const candidates = await findDeadStockCandidates(thresholdDays);
-  return candidates;
+  return findDeadStockCandidates(thresholdDays);
 }
 
-module.exports = { findDeadStockCandidates, applyDeadStockDecay, getDeadStockReport };
+module.exports = { findDeadStockCandidates, applyDeadStockDecay, getDeadStockReport, daysBetween };

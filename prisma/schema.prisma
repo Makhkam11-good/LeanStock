@@ -25,6 +25,7 @@ model User {
   audit_logs      AuditLog[]
   price_histories PriceHistory[]
   refresh_tokens  RefreshToken[]
+  auth_tokens     AuthToken[]
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -38,6 +39,29 @@ enum UserRole {
   WAREHOUSE_OPERATOR
   AUDITOR
   SYSTEM_ADMIN
+}
+
+model AuthToken {
+  id         String        @id @default(cuid())
+  user_id    String
+  token_hash String        @unique
+  type       AuthTokenType
+  expires_at DateTime
+  used_at    DateTime?
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime @default(now())
+
+  @@index([user_id])
+  @@index([token_hash])
+  @@index([type])
+  @@index([expires_at])
+}
+
+enum AuthTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
 }
 
 model RefreshToken {
@@ -54,11 +78,13 @@ model RefreshToken {
 }
 
 model Warehouse {
-  id     String          @id @default(cuid())
-  name   String          @unique
-  country String
-  city   String
-  status WarehouseStatus @default(ACTIVE)
+  id        String          @id @default(cuid())
+  name      String          @unique
+  country   String
+  city      String
+  status    WarehouseStatus @default(ACTIVE)
+  is_hidden Boolean         @default(false)
+  hidden_at DateTime?
 
   locations       Location[]
   user_warehouses UserWarehouse[]
@@ -67,6 +93,7 @@ model Warehouse {
   updated_at DateTime @updatedAt
 
   @@index([status])
+  @@index([is_hidden])
 }
 
 enum WarehouseStatus {

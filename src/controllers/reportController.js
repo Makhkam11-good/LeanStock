@@ -4,6 +4,8 @@ const decaySvc = require('../services/decayService');
 const { success } = require('../utils/response');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { getPrismaClient } = require('../config/database');
+const { enqueueJob } = require('../jobs/redisQueue');
+const { QUEUE_DECAY_NAME } = require('../config/env');
 
 const prisma = getPrismaClient();
 
@@ -34,7 +36,7 @@ const getDecayHistory = asyncHandler(async (req, res) => {
 const getLowStockReport = asyncHandler(async (req, res) => {
   const items = await prisma.inventory.findMany({
     where: {
-      quantity_on_hand: { lte: prisma.inventory.fields?.reorder_point },
+      location: { is: { warehouse: { is: { is_hidden: false } } } },
     },
     include: {
       product: { select: { sku: true, name: true, category: true } },
@@ -48,8 +50,16 @@ const getLowStockReport = asyncHandler(async (req, res) => {
 });
 
 const triggerDecayManually = asyncHandler(async (req, res) => {
-  const result = await decaySvc.applyDeadStockDecay();
-  return success(res, { message: 'Dead stock decay applied', ...result });
+  if (req.query.mode === 'sync') {
+    const result = await decaySvc.applyDeadStockDecay();
+    return success(res, { message: 'Dead stock decay applied', ...result });
+  }
+
+  const job = await enqueueJob(QUEUE_DECAY_NAME, 'dead-stock.decay', {
+    requested_by: req.user.sub,
+    thresholdDays: Number(req.body?.threshold_days || req.query.threshold_days || 30),
+  });
+  return success(res, { message: 'Dead stock decay job queued', job });
 });
 
 module.exports = { getDeadStockReport, getDecayHistory, getLowStockReport, triggerDecayManually };

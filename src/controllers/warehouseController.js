@@ -31,6 +31,11 @@ const closeWarehouse = asyncHandler(async (req, res) => {
   return success(res, wh);
 });
 
+const hideWarehouse = asyncHandler(async (req, res) => {
+  const wh = await warehouseService.hideWarehouse(req.params.id);
+  return success(res, wh);
+});
+
 // ── Locations ──────────────────────────────────────────────────────────────────
 
 const listLocations = asyncHandler(async (req, res) => {
@@ -59,6 +64,6 @@ const deleteLocation = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  listWarehouses, getWarehouse, createWarehouse, updateWarehouse, closeWarehouse,
+  listWarehouses, getWarehouse, createWarehouse, updateWarehouse, closeWarehouse, hideWarehouse,
   listLocations, getLocation, createLocation, updateLocation, deleteLocation,
 };

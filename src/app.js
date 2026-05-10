@@ -54,7 +54,7 @@ app.use('/api', apiLimiter);
 app.get('/health', async (req, res) => {
   try {
     const { getPrismaClient } = require('./config/database');
-    await getPrismaClient().$queryRaw`SELECT 1`;
+    await getPrismaClient().user.count({ take: 1 });
     res.json({ status: 'ok', db: 'connected', timestamp: new Date().toISOString() });
   } catch (err) {
     res.status(503).json({ status: 'error', db: 'disconnected', message: err.message });
@@ -70,7 +70,11 @@ try {
       customCss: '.swagger-ui .topbar { display: none }',
       customSiteTitle: 'LeanStock API',
     }));
-    logger.info('Swagger UI available at /api-docs');
+    app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiDoc, {
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'LeanStock API',
+    }));
+    logger.info('Swagger UI available at /docs and /api-docs');
   }
 } catch (err) {
   logger.warn('Could not load openapi.yaml for Swagger UI:', err.message);

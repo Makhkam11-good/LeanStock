@@ -7,7 +7,7 @@ const ctrl = require('../controllers/warehouseController');
 const { authenticate } = require('../middleware/auth.middleware');
 const { isManager, isAuditor } = require('../middleware/rbac.middleware');
 const { validate } = require('../middleware/validateRequest');
-const { createWarehouseSchema, createLocationSchema } = require('../utils/validators');
+const { createWarehouseSchema, updateWarehouseSchema, createLocationSchema } = require('../utils/validators');
 
 // ── Warehouses ─────────────────────────────────────────────────────────────────
 warehouseRouter.use(authenticate);
@@ -15,7 +15,8 @@ warehouseRouter.use(authenticate);
 warehouseRouter.get('/', isAuditor, ctrl.listWarehouses);
 warehouseRouter.get('/:id', isAuditor, ctrl.getWarehouse);
 warehouseRouter.post('/', isManager, validate(createWarehouseSchema), ctrl.createWarehouse);
-warehouseRouter.patch('/:id', isManager, ctrl.updateWarehouse);
+warehouseRouter.patch('/:id', isManager, validate(updateWarehouseSchema), ctrl.updateWarehouse);
+warehouseRouter.delete('/:id', isManager, ctrl.hideWarehouse);
 warehouseRouter.post('/:id/close', isManager, ctrl.closeWarehouse);
 
 // ── Locations ──────────────────────────────────────────────────────────────────

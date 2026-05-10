@@ -20,7 +20,7 @@ router.get('/', isAuditor, ctrl.listInventory);
 // GET /inventory/:id - Get single inventory record
 router.get('/:id', isAuditor, ctrl.getInventory);
 
-// POST /inventory/transfer - Transfer stock between locations (SELECT FOR UPDATE)
+// POST /inventory/transfer - Transfer stock between locations atomically
 router.post('/transfer', isOperator, validate(transferStockSchema), ctrl.transferStock);
 
 // POST /inventory/receive - Receive new stock

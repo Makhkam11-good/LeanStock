@@ -3,6 +3,7 @@
 const app = require('./src/app');
 const { APP_PORT, APP_HOST } = require('./src/config/env');
 const { disconnectPrisma } = require('./src/config/database');
+const { closeQueueConnection } = require('./src/jobs/redisQueue');
 const { startDecayJob, stopDecayJob } = require('./src/jobs/deadStockDecayJob');
 const logger = require('./src/utils/logger');
 
@@ -25,6 +26,7 @@ async function gracefulShutdown(signal) {
 
   server.close(async () => {
     logger.info('HTTP server closed');
+    await closeQueueConnection();
     await disconnectPrisma();
     logger.info('Database connection closed');
     process.exit(0);

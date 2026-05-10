@@ -1,0 +1,164 @@
+erDiagram
+  User {
+    text id PK
+    text email UK
+    text password_hash
+    text first_name
+    text last_name
+    text phone
+    userrole role
+    boolean is_active
+    boolean is_email_verified
+    integer failed_login_count
+    timestamp locked_until
+    timestamp created_at
+    timestamp updated_at
+  }
+  RefreshToken {
+    text id PK
+    text token UK
+    text user_id FK
+    timestamp expires_at
+    boolean revoked
+    timestamp created_at
+  }
+  Warehouse {
+    text id PK
+    text name UK
+    text country
+    text city
+    warehousestatus status
+    boolean is_hidden
+    timestamp hidden_at
+    timestamp created_at
+    timestamp updated_at
+  }
+  UserWarehouse {
+    text id PK
+    text user_id FK
+    text warehouse_id FK
+    warehouserole role
+    timestamp created_at
+    timestamp updated_at
+  }
+  Location {
+    text id PK
+    text warehouse_id FK
+    text name
+    text address
+    integer capacity_units
+    integer current_volume
+    timestamp created_at
+    timestamp updated_at
+  }
+  Product {
+    text id PK
+    text sku UK
+    text name
+    text description
+    text category
+    decimal base_price
+    integer discount_percentage
+    boolean is_discontinued
+    integer sold_count
+    timestamp created_at
+    timestamp updated_at
+  }
+  Inventory {
+    text id PK
+    text product_id FK
+    text location_id FK
+    integer quantity_on_hand
+    integer quantity_reserved
+    integer reorder_point
+    integer max_stock_level
+    timestamp last_sold_at
+    timestamp created_at
+    timestamp updated_at
+  }
+  InventoryLot {
+    text id PK
+    text inventory_id FK
+    text parent_lot_id FK
+    text lot_code UK
+    integer quantity_received
+    integer quantity_on_hand
+    integer quantity_reserved
+    decimal unit_cost
+    timestamp received_at
+    timestamp expires_at
+    timestamp last_decay_applied_at
+    timestamp created_at
+    timestamp updated_at
+  }
+  StockMovement {
+    text id PK
+    text product_id FK
+    text user_id FK
+    text from_location_id FK
+    text to_location_id FK
+    integer quantity
+    movementtype movement_type
+    movementstatus status
+    text reason
+    timestamp created_at
+    timestamp approved_at
+    timestamp completed_at
+    timestamp updated_at
+  }
+  PriceHistory {
+    text id PK
+    text product_id FK
+    text location_id FK
+    text user_id FK
+    decimal price
+    integer discount_percentage
+    pricechangereason reason
+    timestamp effective_from
+    timestamp effective_to
+    timestamp created_at
+  }
+  DecayAudit {
+    text id PK
+    text inventory_lot_id FK
+    text product_id FK
+    text location_id FK
+    integer old_discount_pct
+    integer new_discount_pct
+    integer days_in_inventory
+    timestamp automatic_trigger_at
+    timestamp created_at
+  }
+  AuditLog {
+    text id PK
+    text user_id FK
+    text action
+    text entity_type
+    text entity_id
+    jsonb old_value
+    jsonb new_value
+    text reason
+    text ip_address
+    text user_agent
+    timestamp created_at
+  }
+
+  User ||--o{ RefreshToken : "user_id"
+  User ||--o{ UserWarehouse : "user_id"
+  Warehouse ||--o{ UserWarehouse : "warehouse_id"
+  Warehouse ||--o{ Location : "warehouse_id"
+  Product ||--o{ Inventory : "product_id"
+  Location ||--o{ Inventory : "location_id"
+  Inventory ||--o{ InventoryLot : "inventory_id"
+  InventoryLot o|--o{ InventoryLot : "parent_lot_id"
+  Product ||--o{ StockMovement : "product_id"
+  User ||--o{ StockMovement : "user_id"
+  Location o|--o{ StockMovement : "from_location_id"
+  Location o|--o{ StockMovement : "to_location_id"
+  Product ||--o{ PriceHistory : "product_id"
+  Location o|--o{ PriceHistory : "location_id"
+  User ||--o{ PriceHistory : "user_id"
+  InventoryLot ||--o{ DecayAudit : "inventory_lot_id"
+  Product ||--o{ DecayAudit : "product_id"
+  Location o|--o{ DecayAudit : "location_id"
+  User ||--o{ AuditLog : "user_id"

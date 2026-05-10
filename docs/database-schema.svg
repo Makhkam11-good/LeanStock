@@ -1,0 +1,276 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1400" viewBox="0 0 1600 1400" role="img" aria-labelledby="title desc">
+<title id="title">LeanStock database connection map</title>
+<desc id="desc">Clear entity relationship map generated from Prisma migration SQL. Foreign keys are grouped by workflow and arrows point from child tables to referenced parent tables.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#334155"/></marker>
+<filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.11"/></filter>
+<style>
+.bg{fill:#f7f9fc}.title{font:700 30px Arial,sans-serif;fill:#0f172a}.subtitle{font:14px Arial,sans-serif;fill:#475569}.panel{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.2}.panel-title{font:700 15px Arial,sans-serif;fill:#0f172a}.node{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.2;filter:url(#softShadow)}.node-title{font:700 14px Arial,sans-serif;fill:#ffffff}.node-meta{font:11px Consolas,Monaco,monospace;fill:#475569}.edge{fill:none;stroke:#334155;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow)}.edge-nullable{stroke-dasharray:7 5}.label-box{fill:#ffffff;stroke:#cbd5e1;stroke-width:1}.edge-label{font:700 11px Consolas,Monaco,monospace;fill:#0f172a}.badge-text{font:700 10px Arial,sans-serif;fill:#ffffff}.fk-index{font:11px Consolas,Monaco,monospace;fill:#334155}.legend{font:12px Arial,sans-serif;fill:#334155}
+</style>
+</defs>
+<rect class="bg" x="0" y="0" width="1600" height="1400"/>
+<text class="title" x="40" y="46">LeanStock Database Connections</text>
+<text class="subtitle" x="40" y="73">Child table FK -> referenced table PK. Arrows point to the parent table. Dashed lines are nullable foreign keys. Tables: 12. Foreign keys: 19.</text>
+<g transform="translate(1160 34)">
+<rect x="0" y="-18" width="390" height="58" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+<line x1="18" y1="6" x2="86" y2="6" class="edge"/>
+<text class="legend" x="100" y="10">required FK</text>
+<line x1="200" y1="6" x2="268" y2="6" class="edge edge-nullable"/>
+<text class="legend" x="282" y="10">nullable FK</text>
+<text class="legend" x="18" y="32">Colored header identifies each table node</text>
+</g>
+<g id="panel-Identity,-Audit,-And-Warehouse-Access">
+<rect class="panel" x="40" y="100" width="730" height="330" rx="10"/>
+<text class="panel-title" x="58" y="128">Identity, Audit, And Warehouse Access</text>
+<path class="edge" d="M 185 316 C 185 267, 185 267, 185 218"/>
+<path class="edge" d="M 310 347 C 310 267, 270 267, 270 187"/>
+<path class="edge" d="M 310 257 C 310 222, 270 222, 270 187"/>
+<path class="edge" d="M 480 257 C 480 222, 540 222, 540 187"/>
+<path class="edge" d="M 625 316 C 625 267, 625 267, 625 218"/>
+<rect class="label-box" x="143" y="257" width="84" height="20" rx="10"/>
+<text class="edge-label" x="185" y="271" text-anchor="middle">1. user_id</text>
+<rect class="label-box" x="244.5" y="257" width="91" height="20" rx="10"/>
+<text class="edge-label" x="290" y="271" text-anchor="middle">19. user_id</text>
+<rect class="label-box" x="248" y="212" width="84" height="20" rx="10"/>
+<text class="edge-label" x="290" y="226" text-anchor="middle">2. user_id</text>
+<rect class="label-box" x="450.5" y="212" width="119" height="20" rx="10"/>
+<text class="edge-label" x="510" y="226" text-anchor="middle">3. warehouse_id</text>
+<rect class="label-box" x="565.5" y="257" width="119" height="20" rx="10"/>
+<text class="edge-label" x="625" y="271" text-anchor="middle">4. warehouse_id</text>
+<g id="node-User-100-156">
+<rect class="node" x="100" y="156" width="170" height="62" rx="8"/>
+<rect x="100" y="156" width="170" height="30" rx="8" fill="#2563eb"/>
+<path d="M 100 178 H 270 V 186 H 100 Z" fill="#2563eb"/>
+<text class="node-title" x="112" y="176">User</text>
+<text class="node-meta" x="112" y="204">PK: id</text>
+</g>
+<g id="node-RefreshToken-100-316">
+<rect class="node" x="100" y="316" width="170" height="62" rx="8"/>
+<rect x="100" y="316" width="170" height="30" rx="8" fill="#1d4ed8"/>
+<path d="M 100 338 H 270 V 346 H 100 Z" fill="#1d4ed8"/>
+<text class="node-title" x="112" y="336">RefreshToken</text>
+<text class="node-meta" x="112" y="364">PK: id</text>
+</g>
+<g id="node-AuditLog-310-316">
+<rect class="node" x="310" y="316" width="170" height="62" rx="8"/>
+<rect x="310" y="316" width="170" height="30" rx="8" fill="#7c3aed"/>
+<path d="M 310 338 H 480 V 346 H 310 Z" fill="#7c3aed"/>
+<text class="node-title" x="322" y="336">AuditLog</text>
+<text class="node-meta" x="322" y="364">PK: id</text>
+</g>
+<g id="node-UserWarehouse-310-226">
+<rect class="node" x="310" y="226" width="170" height="62" rx="8"/>
+<rect x="310" y="226" width="170" height="30" rx="8" fill="#0d9488"/>
+<path d="M 310 248 H 480 V 256 H 310 Z" fill="#0d9488"/>
+<text class="node-title" x="322" y="246">UserWarehouse</text>
+<text class="node-meta" x="322" y="274">PK: id</text>
+</g>
+<g id="node-Warehouse-540-156">
+<rect class="node" x="540" y="156" width="170" height="62" rx="8"/>
+<rect x="540" y="156" width="170" height="30" rx="8" fill="#059669"/>
+<path d="M 540 178 H 710 V 186 H 540 Z" fill="#059669"/>
+<text class="node-title" x="552" y="176">Warehouse</text>
+<text class="node-meta" x="552" y="204">PK: id</text>
+</g>
+<g id="node-Location-540-316">
+<rect class="node" x="540" y="316" width="170" height="62" rx="8"/>
+<rect x="540" y="316" width="170" height="30" rx="8" fill="#16a34a"/>
+<path d="M 540 338 H 710 V 346 H 540 Z" fill="#16a34a"/>
+<text class="node-title" x="552" y="336">Location</text>
+<text class="node-meta" x="552" y="364">PK: id</text>
+</g>
+</g>
+<g id="panel-Inventory-Chain">
+<rect class="panel" x="830" y="100" width="730" height="330" rx="10"/>
+<text class="panel-title" x="848" y="128">Inventory Chain</text>
+<path class="edge" d="M 1105 283 C 1105 235, 1070 235, 1070 187"/>
+<path class="edge" d="M 1275 283 C 1275 235, 1310 235, 1310 187"/>
+<path class="edge" d="M 1190 346 C 1190 330, 1190 330, 1190 314"/>
+<path class="edge edge-nullable" d="M 1275 368 C 1345 368, 1345 394, 1275 394"/>
+<rect class="label-box" x="1035" y="225" width="105" height="20" rx="10"/>
+<text class="edge-label" x="1087.5" y="239" text-anchor="middle">5. product_id</text>
+<rect class="label-box" x="1236.5" y="225" width="112" height="20" rx="10"/>
+<text class="edge-label" x="1292.5" y="239" text-anchor="middle">6. location_id</text>
+<rect class="label-box" x="1130.5" y="320" width="119" height="20" rx="10"/>
+<text class="edge-label" x="1190" y="334" text-anchor="middle">7. inventory_id</text>
+<rect class="label-box" x="1290" y="371" width="126" height="20" rx="10"/>
+<text class="edge-label" x="1353" y="385" text-anchor="middle">8. parent_lot_id</text>
+<g id="node-Product-900-156">
+<rect class="node" x="900" y="156" width="170" height="62" rx="8"/>
+<rect x="900" y="156" width="170" height="30" rx="8" fill="#0f766e"/>
+<path d="M 900 178 H 1070 V 186 H 900 Z" fill="#0f766e"/>
+<text class="node-title" x="912" y="176">Product</text>
+<text class="node-meta" x="912" y="204">PK: id</text>
+</g>
+<g id="node-Location-1310-156">
+<rect class="node" x="1310" y="156" width="170" height="62" rx="8"/>
+<rect x="1310" y="156" width="170" height="30" rx="8" fill="#16a34a"/>
+<path d="M 1310 178 H 1480 V 186 H 1310 Z" fill="#16a34a"/>
+<text class="node-title" x="1322" y="176">Location</text>
+<text class="node-meta" x="1322" y="204">PK: id</text>
+</g>
+<g id="node-Inventory-1105-252">
+<rect class="node" x="1105" y="252" width="170" height="62" rx="8"/>
+<rect x="1105" y="252" width="170" height="30" rx="8" fill="#d97706"/>
+<path d="M 1105 274 H 1275 V 282 H 1105 Z" fill="#d97706"/>
+<text class="node-title" x="1117" y="272">Inventory</text>
+<text class="node-meta" x="1117" y="300">PK: id</text>
+</g>
+<g id="node-InventoryLot-1105-346">
+<rect class="node" x="1105" y="346" width="170" height="62" rx="8"/>
+<rect x="1105" y="346" width="170" height="30" rx="8" fill="#ea580c"/>
+<path d="M 1105 368 H 1275 V 376 H 1105 Z" fill="#ea580c"/>
+<text class="node-title" x="1117" y="366">InventoryLot</text>
+<text class="node-meta" x="1117" y="394">PK: id</text>
+</g>
+</g>
+<g id="panel-Stock-Movement">
+<rect class="panel" x="40" y="465" width="730" height="295" rx="10"/>
+<text class="panel-title" x="58" y="493">Stock Movement</text>
+<path class="edge" d="M 400 653 C 400 617, 400 617, 400 581"/>
+<path class="edge" d="M 315 684 C 315 617, 270 617, 270 550"/>
+<path class="edge edge-nullable" d="M 471 684 C 471 617, 526 617, 526 550"/>
+<path class="edge edge-nullable" d="M 499 684 C 499 617, 554 617, 554 550"/>
+<rect class="label-box" x="347.5" y="607" width="105" height="20" rx="10"/>
+<text class="edge-label" x="400" y="621" text-anchor="middle">9. product_id</text>
+<rect class="label-box" x="247" y="607" width="91" height="20" rx="10"/>
+<text class="edge-label" x="292.5" y="621" text-anchor="middle">10. user_id</text>
+<rect class="label-box" x="421.5" y="607" width="154" height="20" rx="10"/>
+<text class="edge-label" x="498.5" y="621" text-anchor="middle">11. from_location_id</text>
+<rect class="label-box" x="456.5" y="607" width="140" height="20" rx="10"/>
+<text class="edge-label" x="526.5" y="621" text-anchor="middle">12. to_location_id</text>
+<g id="node-User-100-519">
+<rect class="node" x="100" y="519" width="170" height="62" rx="8"/>
+<rect x="100" y="519" width="170" height="30" rx="8" fill="#2563eb"/>
+<path d="M 100 541 H 270 V 549 H 100 Z" fill="#2563eb"/>
+<text class="node-title" x="112" y="539">User</text>
+<text class="node-meta" x="112" y="567">PK: id</text>
+</g>
+<g id="node-Product-315-519">
+<rect class="node" x="315" y="519" width="170" height="62" rx="8"/>
+<rect x="315" y="519" width="170" height="30" rx="8" fill="#0f766e"/>
+<path d="M 315 541 H 485 V 549 H 315 Z" fill="#0f766e"/>
+<text class="node-title" x="327" y="539">Product</text>
+<text class="node-meta" x="327" y="567">PK: id</text>
+</g>
+<g id="node-Location-540-519">
+<rect class="node" x="540" y="519" width="170" height="62" rx="8"/>
+<rect x="540" y="519" width="170" height="30" rx="8" fill="#16a34a"/>
+<path d="M 540 541 H 710 V 549 H 540 Z" fill="#16a34a"/>
+<text class="node-title" x="552" y="539">Location</text>
+<text class="node-meta" x="552" y="567">PK: id</text>
+</g>
+<g id="node-StockMovement-315-653">
+<rect class="node" x="315" y="653" width="170" height="62" rx="8"/>
+<rect x="315" y="653" width="170" height="30" rx="8" fill="#4f46e5"/>
+<path d="M 315 675 H 485 V 683 H 315 Z" fill="#4f46e5"/>
+<text class="node-title" x="327" y="673">StockMovement</text>
+<text class="node-meta" x="327" y="701">PK: id</text>
+</g>
+</g>
+<g id="panel-Price-History">
+<rect class="panel" x="830" y="465" width="730" height="295" rx="10"/>
+<text class="panel-title" x="848" y="493">Price History</text>
+<path class="edge" d="M 1190 653 C 1190 617, 1190 617, 1190 581"/>
+<path class="edge edge-nullable" d="M 1275 684 C 1275 617, 1330 617, 1330 550"/>
+<path class="edge" d="M 1105 684 C 1105 617, 1060 617, 1060 550"/>
+<rect class="label-box" x="1134" y="607" width="112" height="20" rx="10"/>
+<text class="edge-label" x="1190" y="621" text-anchor="middle">13. product_id</text>
+<rect class="label-box" x="1243" y="607" width="119" height="20" rx="10"/>
+<text class="edge-label" x="1302.5" y="621" text-anchor="middle">14. location_id</text>
+<rect class="label-box" x="1037" y="607" width="91" height="20" rx="10"/>
+<text class="edge-label" x="1082.5" y="621" text-anchor="middle">15. user_id</text>
+<g id="node-User-890-519">
+<rect class="node" x="890" y="519" width="170" height="62" rx="8"/>
+<rect x="890" y="519" width="170" height="30" rx="8" fill="#2563eb"/>
+<path d="M 890 541 H 1060 V 549 H 890 Z" fill="#2563eb"/>
+<text class="node-title" x="902" y="539">User</text>
+<text class="node-meta" x="902" y="567">PK: id</text>
+</g>
+<g id="node-Product-1105-519">
+<rect class="node" x="1105" y="519" width="170" height="62" rx="8"/>
+<rect x="1105" y="519" width="170" height="30" rx="8" fill="#0f766e"/>
+<path d="M 1105 541 H 1275 V 549 H 1105 Z" fill="#0f766e"/>
+<text class="node-title" x="1117" y="539">Product</text>
+<text class="node-meta" x="1117" y="567">PK: id</text>
+</g>
+<g id="node-Location-1330-519">
+<rect class="node" x="1330" y="519" width="170" height="62" rx="8"/>
+<rect x="1330" y="519" width="170" height="30" rx="8" fill="#16a34a"/>
+<path d="M 1330 541 H 1500 V 549 H 1330 Z" fill="#16a34a"/>
+<text class="node-title" x="1342" y="539">Location</text>
+<text class="node-meta" x="1342" y="567">PK: id</text>
+</g>
+<g id="node-PriceHistory-1105-653">
+<rect class="node" x="1105" y="653" width="170" height="62" rx="8"/>
+<rect x="1105" y="653" width="170" height="30" rx="8" fill="#c2410c"/>
+<path d="M 1105 675 H 1275 V 683 H 1105 Z" fill="#c2410c"/>
+<text class="node-title" x="1117" y="673">PriceHistory</text>
+<text class="node-meta" x="1117" y="701">PK: id</text>
+</g>
+</g>
+<g id="panel-Dead-Stock-Decay-Audit">
+<rect class="panel" x="40" y="795" width="730" height="315" rx="10"/>
+<text class="panel-title" x="58" y="823">Dead Stock Decay Audit</text>
+<path class="edge" d="M 315 1020 C 315 950, 270 950, 270 880"/>
+<path class="edge" d="M 400 989 C 400 950, 400 950, 400 911"/>
+<path class="edge edge-nullable" d="M 485 1020 C 485 950, 540 950, 540 880"/>
+<rect class="label-box" x="215.5" y="940" width="154" height="20" rx="10"/>
+<text class="edge-label" x="292.5" y="954" text-anchor="middle">16. inventory_lot_id</text>
+<rect class="label-box" x="344" y="940" width="112" height="20" rx="10"/>
+<text class="edge-label" x="400" y="954" text-anchor="middle">17. product_id</text>
+<rect class="label-box" x="453" y="940" width="119" height="20" rx="10"/>
+<text class="edge-label" x="512.5" y="954" text-anchor="middle">18. location_id</text>
+<g id="node-InventoryLot-100-849">
+<rect class="node" x="100" y="849" width="170" height="62" rx="8"/>
+<rect x="100" y="849" width="170" height="30" rx="8" fill="#ea580c"/>
+<path d="M 100 871 H 270 V 879 H 100 Z" fill="#ea580c"/>
+<text class="node-title" x="112" y="869">InventoryLot</text>
+<text class="node-meta" x="112" y="897">PK: id</text>
+</g>
+<g id="node-Product-315-849">
+<rect class="node" x="315" y="849" width="170" height="62" rx="8"/>
+<rect x="315" y="849" width="170" height="30" rx="8" fill="#0f766e"/>
+<path d="M 315 871 H 485 V 879 H 315 Z" fill="#0f766e"/>
+<text class="node-title" x="327" y="869">Product</text>
+<text class="node-meta" x="327" y="897">PK: id</text>
+</g>
+<g id="node-Location-540-849">
+<rect class="node" x="540" y="849" width="170" height="62" rx="8"/>
+<rect x="540" y="849" width="170" height="30" rx="8" fill="#16a34a"/>
+<path d="M 540 871 H 710 V 879 H 540 Z" fill="#16a34a"/>
+<text class="node-title" x="552" y="869">Location</text>
+<text class="node-meta" x="552" y="897">PK: id</text>
+</g>
+<g id="node-DecayAudit-315-989">
+<rect class="node" x="315" y="989" width="170" height="62" rx="8"/>
+<rect x="315" y="989" width="170" height="30" rx="8" fill="#be123c"/>
+<path d="M 315 1011 H 485 V 1019 H 315 Z" fill="#be123c"/>
+<text class="node-title" x="327" y="1009">DecayAudit</text>
+<text class="node-meta" x="327" y="1037">PK: id</text>
+</g>
+</g>
+<g id="fk-index">
+<rect class="panel" x="40" y="1140" width="1520" height="220" rx="10"/>
+<text class="panel-title" x="58" y="1168">Full Foreign Key Index</text>
+<text class="fk-index" x="58" y="1198">1. RefreshToken.user_id -&gt; User.id</text>
+<text class="fk-index" x="58" y="1214.9">2. UserWarehouse.user_id -&gt; User.id</text>
+<text class="fk-index" x="58" y="1231.8">3. UserWarehouse.warehouse_id -&gt; Warehouse.id</text>
+<text class="fk-index" x="58" y="1248.7">4. Location.warehouse_id -&gt; Warehouse.id</text>
+<text class="fk-index" x="58" y="1265.6">5. Inventory.product_id -&gt; Product.id</text>
+<text class="fk-index" x="58" y="1282.4">6. Inventory.location_id -&gt; Location.id</text>
+<text class="fk-index" x="58" y="1299.3">7. InventoryLot.inventory_id -&gt; Inventory.id</text>
+<text class="fk-index" x="58" y="1316.2">8. InventoryLot.parent_lot_id -&gt; InventoryLot.id optional</text>
+<text class="fk-index" x="58" y="1333.1">9. StockMovement.product_id -&gt; Product.id</text>
+<text class="fk-index" x="58" y="1350">10. StockMovement.user_id -&gt; User.id</text>
+<text class="fk-index" x="818" y="1198">11. StockMovement.from_location_id -&gt; Location.id optional</text>
+<text class="fk-index" x="818" y="1214.9">12. StockMovement.to_location_id -&gt; Location.id optional</text>
+<text class="fk-index" x="818" y="1231.8">13. PriceHistory.product_id -&gt; Product.id</text>
+<text class="fk-index" x="818" y="1248.7">14. PriceHistory.location_id -&gt; Location.id optional</text>
+<text class="fk-index" x="818" y="1265.6">15. PriceHistory.user_id -&gt; User.id</text>
+<text class="fk-index" x="818" y="1282.4">16. DecayAudit.inventory_lot_id -&gt; InventoryLot.id</text>
+<text class="fk-index" x="818" y="1299.3">17. DecayAudit.product_id -&gt; Product.id</text>
+<text class="fk-index" x="818" y="1316.2">18. DecayAudit.location_id -&gt; Location.id optional</text>
+<text class="fk-index" x="818" y="1333.1">19. AuditLog.user_id -&gt; User.id</text>
+</g>
+</svg>
