@@ -66,6 +66,9 @@ try {
   const openapiPath = path.join(__dirname, '..', 'docs', 'openapi.yaml');
   if (fs.existsSync(openapiPath)) {
     const openapiDoc = YAML.parse(fs.readFileSync(openapiPath, 'utf8'));
+    app.get('/openapi.yaml', (req, res) => {
+      res.type('application/yaml').sendFile(openapiPath);
+    });
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiDoc, {
       customCss: '.swagger-ui .topbar { display: none }',
       customSiteTitle: 'LeanStock API',

@@ -36,6 +36,7 @@ docker compose up --build
 - API: `http://localhost:3000/api/v1`
 - Swagger UI: `http://localhost:3000/docs` or `http://localhost:3000/api-docs`
 - Health check: `http://localhost:3000/health`
+- PostgreSQL from host tools/tests: `localhost:5433` (inside Docker network it remains `postgres:5432`)
 
 ## Quick Start (Local Development)
 
@@ -175,7 +176,7 @@ For local integration tests, the Docker Postgres init script creates `leanstock_
 
 ```bash
 docker compose up -d postgres redis
-$env:DATABASE_URL="postgresql://leanstock:leanstock_pass@localhost:5432/leanstock_test"
+$env:DATABASE_URL="postgresql://leanstock:leanstock_pass@localhost:5433/leanstock_test"
 npx prisma migrate deploy
 npm test
 ```
