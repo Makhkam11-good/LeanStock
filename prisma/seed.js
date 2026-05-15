@@ -4,11 +4,26 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
+const DEFAULT_TENANT = {
+  id: 'default-tenant',
+  name: 'Default Company',
+  slug: 'default-company',
+};
 
 async function seed() {
   console.log('🌱 Seeding database...');
 
   // ── System user for decay automation ──
+  const defaultTenant = await prisma.tenant.upsert({
+    where: { slug: DEFAULT_TENANT.slug },
+    update: { name: DEFAULT_TENANT.name, is_active: true },
+    create: {
+      ...DEFAULT_TENANT,
+      is_active: true,
+    },
+  });
+  console.log('  Default tenant ready:', defaultTenant.name);
+
   const systemUser = await prisma.user.upsert({
     where: { email: 'system@leanstock.internal' },
     update: { is_active: false, is_email_verified: true },
@@ -43,8 +58,9 @@ async function seed() {
 
   const manager = await prisma.user.upsert({
     where: { email: 'manager@leanstock.com' },
-    update: { is_email_verified: true },
+    update: { tenant_id: defaultTenant.id, is_email_verified: true },
     create: {
+      tenant_id: defaultTenant.id,
       email: 'manager@leanstock.com',
       password_hash: await bcrypt.hash('Manager123', 10),
       first_name: 'Alice',
@@ -59,8 +75,9 @@ async function seed() {
   // ── Operator user ──
   const operator = await prisma.user.upsert({
     where: { email: 'operator@leanstock.com' },
-    update: { is_email_verified: true },
+    update: { tenant_id: defaultTenant.id, is_email_verified: true },
     create: {
+      tenant_id: defaultTenant.id,
       email: 'operator@leanstock.com',
       password_hash: await bcrypt.hash('Operator123', 10),
       first_name: 'Bob',
@@ -75,8 +92,9 @@ async function seed() {
   // ── Auditor user ──
   const auditor = await prisma.user.upsert({
     where: { email: 'auditor@leanstock.com' },
-    update: { is_email_verified: true },
+    update: { tenant_id: defaultTenant.id, is_email_verified: true },
     create: {
+      tenant_id: defaultTenant.id,
       email: 'auditor@leanstock.com',
       password_hash: await bcrypt.hash('Auditor123', 10),
       first_name: 'Charlie',
@@ -90,9 +108,10 @@ async function seed() {
 
   // ── Warehouse ──
   const warehouse = await prisma.warehouse.upsert({
-    where: { name: 'Main Almaty Warehouse' },
+    where: { tenant_id_name: { tenant_id: defaultTenant.id, name: 'Main Almaty Warehouse' } },
     update: {},
     create: {
+      tenant_id: defaultTenant.id,
       name: 'Main Almaty Warehouse',
       country: 'Kazakhstan',
       city: 'Almaty',
@@ -135,15 +154,15 @@ async function seed() {
 
   for (const p of products) {
     await prisma.product.upsert({
-      where: { sku: p.sku },
+      where: { tenant_id_sku: { tenant_id: defaultTenant.id, sku: p.sku } },
       update: {},
-      create: p,
+      create: { ...p, tenant_id: defaultTenant.id },
     });
   }
   console.log(`  ✓ ${products.length} products created`);
 
   // ── Inventory with lots ──
-  const productRecords = await prisma.product.findMany();
+  const productRecords = await prisma.product.findMany({ where: { tenant_id: defaultTenant.id } });
   for (const product of productRecords) {
     const inv = await prisma.inventory.upsert({
       where: { product_id_location_id: { product_id: product.id, location_id: locA.id } },

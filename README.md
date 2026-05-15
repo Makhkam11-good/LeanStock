@@ -82,7 +82,7 @@ After running `npm run db:seed`:
 ### Auth
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| POST | /api/v1/auth/signup | - | Public signup, queues verification email |
+| POST | /api/v1/auth/signup | - | Public signup as AUDITOR, queues verification email |
 | POST | /api/v1/auth/register | Bearer (SYSTEM_ADMIN) | Create user and assign role |
 | POST | /api/v1/auth/login | - | Get JWT tokens |
 | POST | /api/v1/auth/refresh-token | - | Rotate refresh token and issue access token |

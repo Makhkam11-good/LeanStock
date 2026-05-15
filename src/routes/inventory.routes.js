@@ -7,7 +7,7 @@ const { authenticate } = require('../middleware/auth.middleware');
 const { isOperator, isAuditor } = require('../middleware/rbac.middleware');
 const { validate } = require('../middleware/validateRequest');
 const { z } = require('zod');
-const { transferStockSchema, createMovementSchema } = require('../utils/validators');
+const { transferStockSchema, createMovementSchema, sellStockSchema } = require('../utils/validators');
 
 const reserveSchema = z.object({ quantity: z.number().int().positive() });
 
@@ -25,6 +25,9 @@ router.post('/transfer', isOperator, validate(transferStockSchema), ctrl.transfe
 
 // POST /inventory/receive - Receive new stock
 router.post('/receive', isOperator, validate(createMovementSchema), ctrl.receiveStock);
+
+// POST /inventory/sell - Sell stock from a location
+router.post('/sell', isOperator, validate(sellStockSchema), ctrl.sellStock);
 
 // POST /inventory/:id/reserve - Reserve inventory
 router.post('/:id/reserve', isOperator, validate(reserveSchema), ctrl.reserveInventory);

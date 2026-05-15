@@ -10,10 +10,19 @@ const registerSchema = z.object({
   first_name: z.string().min(1).max(100),
   last_name: z.string().min(1).max(100),
   phone: z.string().optional(),
-  role: z.enum(['MANAGER', 'WAREHOUSE_OPERATOR', 'AUDITOR', 'SYSTEM_ADMIN']).optional(),
+  role: z.enum(['MANAGER', 'WAREHOUSE_OPERATOR', 'AUDITOR']).optional(),
+  tenant_id: z.string().min(1).optional(),
 });
 
-const signupSchema = registerSchema.omit({ role: true });
+const signupSchema = z.object({
+  company_name: z.string().min(1).max(200),
+  company_slug: z.string().min(2).max(80).regex(/^[a-zA-Z0-9-]+$/).optional(),
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  first_name: z.string().min(1).max(100),
+  last_name: z.string().min(1).max(100),
+  phone: z.string().optional(),
+});
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -105,6 +114,13 @@ const createMovementSchema = z.object({
   unit_cost: z.number().positive(),
 });
 
+const sellStockSchema = z.object({
+  product_id: z.string().min(1),
+  location_id: z.string().min(1),
+  quantity: z.number().int().positive(),
+  reason: z.string().optional(),
+});
+
 module.exports = {
   registerSchema,
   signupSchema,
@@ -122,4 +138,5 @@ module.exports = {
   updateProductSchema,
   transferStockSchema,
   createMovementSchema,
+  sellStockSchema,
 };

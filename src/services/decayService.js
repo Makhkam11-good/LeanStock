@@ -11,6 +11,10 @@ function daysBetween(start, end = new Date()) {
   return Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
 }
 
+function tenantFilter(tenantId) {
+  return tenantId ? { tenant_id: tenantId } : {};
+}
+
 function toDeadStockCandidate(lot) {
   return {
     inventory_lot_id: lot.id,
@@ -21,6 +25,7 @@ function toDeadStockCandidate(lot) {
     inventory_id: lot.inventory_id,
     location_id: lot.inventory.location_id,
     product_id: lot.inventory.product.id,
+    tenant_id: lot.inventory.product.tenant_id,
     sku: lot.inventory.product.sku,
     name: lot.inventory.product.name,
     base_price: Number(lot.inventory.product.base_price),
@@ -29,7 +34,8 @@ function toDeadStockCandidate(lot) {
   };
 }
 
-async function findDeadStockCandidates(thresholdDays = DEAD_STOCK_THRESHOLD_DAYS) {
+async function findDeadStockCandidates(thresholdDays = DEAD_STOCK_THRESHOLD_DAYS, options = {}) {
+  const { tenantId } = options;
   const thresholdDate = new Date(Date.now() - thresholdDays * 24 * 60 * 60 * 1000);
   const decayWindowStart = new Date(Date.now() - 72 * 60 * 60 * 1000);
 
@@ -42,13 +48,14 @@ async function findDeadStockCandidates(thresholdDays = DEAD_STOCK_THRESHOLD_DAYS
         { last_decay_applied_at: { lte: decayWindowStart } },
       ],
       inventory: {
-        product: { is: { is_discontinued: false } },
+        product: { is: { is_discontinued: false, ...tenantFilter(tenantId) } },
         location: {
           is: {
             warehouse: {
               is: {
                 is_hidden: false,
                 status: 'ACTIVE',
+                ...tenantFilter(tenantId),
               },
             },
           },
@@ -70,12 +77,13 @@ async function findDeadStockCandidates(thresholdDays = DEAD_STOCK_THRESHOLD_DAYS
   return lots.map(toDeadStockCandidate);
 }
 
-async function queueDecaySummaryEmail(result) {
+async function queueDecaySummaryEmail(result, tenantId) {
   if (!result.processed) return;
 
   const managers = await prisma.user.findMany({
     where: {
-      role: { in: ['MANAGER', 'SYSTEM_ADMIN'] },
+      role: tenantId ? 'MANAGER' : { in: ['MANAGER', 'SYSTEM_ADMIN'] },
+      ...(tenantId ? { tenant_id: tenantId } : {}),
       is_active: true,
       is_email_verified: true,
     },
@@ -97,10 +105,11 @@ async function applyDeadStockDecay(options = {}) {
   const maxDiscount = options.maxDiscount || DEAD_STOCK_DECAY_MAX_PERCENT;
   const thresholdDays = options.thresholdDays || DEAD_STOCK_THRESHOLD_DAYS;
   const systemUserId = options.systemUserId || SYSTEM_USER_ID;
+  const tenantId = options.tenantId;
 
   logger.info(`[DecayJob] Starting dead stock decay (threshold: ${thresholdDays} days, decay: ${decayPercent}%, max: ${maxDiscount}%)`);
 
-  const candidates = await findDeadStockCandidates(thresholdDays);
+  const candidates = await findDeadStockCandidates(thresholdDays, { tenantId });
 
   if (candidates.length === 0) {
     logger.info('[DecayJob] No dead stock candidates found');
@@ -167,13 +176,13 @@ async function applyDeadStockDecay(options = {}) {
   }
 
   const result = { processed, skipped, total: candidates.length };
-  await queueDecaySummaryEmail(result);
+  await queueDecaySummaryEmail(result, tenantId);
   logger.info(`[DecayJob] Decay complete. Processed: ${processed}, Skipped: ${skipped}`);
   return result;
 }
 
-async function getDeadStockReport(thresholdDays = DEAD_STOCK_THRESHOLD_DAYS) {
-  return findDeadStockCandidates(thresholdDays);
+async function getDeadStockReport(thresholdDays = DEAD_STOCK_THRESHOLD_DAYS, options = {}) {
+  return findDeadStockCandidates(thresholdDays, options);
 }
 
 module.exports = { findDeadStockCandidates, applyDeadStockDecay, getDeadStockReport, daysBetween };

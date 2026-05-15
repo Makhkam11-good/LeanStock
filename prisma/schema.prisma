@@ -9,6 +9,7 @@ generator client {
 
 model User {
   id                 String    @id @default(cuid())
+  tenant_id          String?
   email              String    @unique
   password_hash      String
   first_name         String
@@ -20,6 +21,7 @@ model User {
   failed_login_count Int       @default(0)
   locked_until       DateTime?
 
+  tenant          Tenant?         @relation(fields: [tenant_id], references: [id], onDelete: SetNull)
   user_warehouses UserWarehouse[]
   stock_movements StockMovement[]
   audit_logs      AuditLog[]
@@ -31,7 +33,25 @@ model User {
   updated_at DateTime @updatedAt
 
   @@index([email])
+  @@index([tenant_id])
   @@index([role])
+}
+
+model Tenant {
+  id        String  @id @default(cuid())
+  name      String
+  slug      String  @unique
+  is_active Boolean @default(false)
+
+  users      User[]
+  warehouses Warehouse[]
+  products   Product[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([slug])
+  @@index([is_active])
 }
 
 enum UserRole {
@@ -79,19 +99,23 @@ model RefreshToken {
 
 model Warehouse {
   id        String          @id @default(cuid())
-  name      String          @unique
+  tenant_id String
+  name      String
   country   String
   city      String
   status    WarehouseStatus @default(ACTIVE)
   is_hidden Boolean         @default(false)
   hidden_at DateTime?
 
+  tenant          Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
   locations       Location[]
   user_warehouses UserWarehouse[]
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
+  @@unique([tenant_id, name])
+  @@index([tenant_id])
   @@index([status])
   @@index([is_hidden])
 }
@@ -149,7 +173,8 @@ model Location {
 
 model Product {
   id                  String  @id @default(cuid())
-  sku                 String  @unique
+  tenant_id           String
+  sku                 String
   name                String
   description         String? @db.Text
   category            String
@@ -158,6 +183,7 @@ model Product {
   is_discontinued     Boolean @default(false)
   sold_count          Int     @default(0)
 
+  tenant           Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Restrict)
   inventory_stocks Inventory[]
   stock_movements  StockMovement[]
   price_histories  PriceHistory[]
@@ -166,6 +192,8 @@ model Product {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
+  @@unique([tenant_id, sku])
+  @@index([tenant_id])
   @@index([sku])
   @@index([category])
   @@index([is_discontinued])

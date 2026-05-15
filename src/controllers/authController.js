@@ -6,7 +6,7 @@ const { asyncHandler } = require('../middleware/asyncHandler');
 const { ValidationError } = require('../utils/errors');
 
 const register = asyncHandler(async (req, res) => {
-  const user = await authService.register(req.body);
+  const user = await authService.register(req.body, req.user);
   return created(res, user);
 });
 
@@ -65,7 +65,25 @@ const me = asyncHandler(async (req, res) => {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: req.user.sub },
-    select: { id: true, email: true, first_name: true, last_name: true, role: true, is_active: true, is_email_verified: true, created_at: true },
+    select: {
+      id: true,
+      tenant_id: true,
+      email: true,
+      first_name: true,
+      last_name: true,
+      role: true,
+      is_active: true,
+      is_email_verified: true,
+      created_at: true,
+      tenant: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          is_active: true,
+        },
+      },
+    },
   });
   return success(res, user);
 });

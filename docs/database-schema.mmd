@@ -1,6 +1,15 @@
 erDiagram
+  Tenant {
+    text id PK
+    text name
+    text slug UK
+    boolean is_active
+    timestamp created_at
+    timestamp updated_at
+  }
   User {
     text id PK
+    text tenant_id FK
     text email UK
     text password_hash
     text first_name
@@ -24,7 +33,8 @@ erDiagram
   }
   Warehouse {
     text id PK
-    text name UK
+    text tenant_id FK
+    text name
     text country
     text city
     warehousestatus status
@@ -53,7 +63,8 @@ erDiagram
   }
   Product {
     text id PK
-    text sku UK
+    text tenant_id FK
+    text sku
     text name
     text description
     text category
@@ -143,6 +154,9 @@ erDiagram
     timestamp created_at
   }
 
+  Tenant ||--o{ User : "tenant_id"
+  Tenant ||--o{ Warehouse : "tenant_id"
+  Tenant ||--o{ Product : "tenant_id"
   User ||--o{ RefreshToken : "user_id"
   User ||--o{ UserWarehouse : "user_id"
   Warehouse ||--o{ UserWarehouse : "warehouse_id"

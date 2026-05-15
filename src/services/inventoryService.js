@@ -3,6 +3,7 @@
 const { getPrismaClient } = require('../config/database');
 const { InsufficientStockError, CapacityExceededError, NotFoundError, ConflictError } = require('../utils/errors');
 const { getPaginationParams, buildPaginationResponse } = require('../utils/paginator');
+const { tenantWhere } = require('../utils/tenantScope');
 const { enqueueEmail } = require('./emailService');
 const logger = require('../utils/logger');
 
@@ -18,6 +19,15 @@ function assertOperationalLocation(location, label) {
   }
 }
 
+async function assertScopedProduct(tx, productId, user) {
+  const product = await tx.product.findFirst({
+    where: { id: productId, ...tenantWhere(user) },
+    select: { id: true },
+  });
+  if (!product) throw new NotFoundError('Product');
+  return product;
+}
+
 async function queueInventoryEventEmail(userId, message) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -27,7 +37,7 @@ async function queueInventoryEventEmail(userId, message) {
   return enqueueEmail({ to: user.email, ...message });
 }
 
-async function transferStockBetweenLocations({ product_id, from_location_id, to_location_id, quantity, user_id, reason }) {
+async function transferStockBetweenLocations({ product_id, from_location_id, to_location_id, quantity, user_id, reason, user }) {
   if (from_location_id === to_location_id) {
     throw new ConflictError('Source and destination locations must be different');
   }
@@ -35,7 +45,10 @@ async function transferStockBetweenLocations({ product_id, from_location_id, to_
   const result = await prisma.$transaction(
     async (tx) => {
       const locations = await tx.location.findMany({
-        where: { id: { in: [from_location_id, to_location_id] } },
+        where: {
+          id: { in: [from_location_id, to_location_id] },
+          warehouse: { is: tenantWhere(user) },
+        },
         include: { warehouse: { select: { is_hidden: true, status: true } } },
       });
       const locationById = new Map(locations.map(location => [location.id, location]));
@@ -44,6 +57,7 @@ async function transferStockBetweenLocations({ product_id, from_location_id, to_
 
       assertOperationalLocation(sourceLocation, 'Source');
       assertOperationalLocation(destLocation, 'Destination');
+      await assertScopedProduct(tx, product_id, user);
 
       const sourceInv = await tx.inventory.findUnique({
         where: { product_id_location_id: { product_id, location_id: from_location_id } },
@@ -199,13 +213,14 @@ async function transferStockBetweenLocations({ product_id, from_location_id, to_
   return result;
 }
 
-async function receiveStock({ product_id, location_id, quantity, unit_cost, lot_code, user_id }) {
+async function receiveStock({ product_id, location_id, quantity, unit_cost, lot_code, user_id, user }) {
   const result = await prisma.$transaction(async (tx) => {
-    const location = await tx.location.findUnique({
-      where: { id: location_id },
+    const location = await tx.location.findFirst({
+      where: { id: location_id, warehouse: { is: tenantWhere(user) } },
       include: { warehouse: { select: { is_hidden: true, status: true } } },
     });
     assertOperationalLocation(location, 'Destination');
+    await assertScopedProduct(tx, product_id, user);
 
     if (location.current_volume + quantity > location.capacity_units) {
       throw new CapacityExceededError(
@@ -285,11 +300,144 @@ async function receiveStock({ product_id, location_id, quantity, unit_cost, lot_
   return result;
 }
 
-async function listInventory(query) {
+async function sellStock({ product_id, location_id, quantity, user_id, reason, user }) {
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const location = await tx.location.findFirst({
+        where: { id: location_id, warehouse: { is: tenantWhere(user) } },
+        include: { warehouse: { select: { is_hidden: true, status: true } } },
+      });
+      assertOperationalLocation(location, 'Source');
+      await assertScopedProduct(tx, product_id, user);
+
+      const inventory = await tx.inventory.findUnique({
+        where: { product_id_location_id: { product_id, location_id } },
+        include: {
+          inventory_lots: {
+            where: { quantity_on_hand: { gt: 0 } },
+            orderBy: [{ received_at: 'asc' }, { created_at: 'asc' }],
+          },
+        },
+      });
+      if (!inventory) throw new NotFoundError('Inventory record');
+
+      const available = inventory.quantity_on_hand - inventory.quantity_reserved;
+      if (available < quantity) {
+        throw new InsufficientStockError(
+          `Only ${available} units available to sell at this location (${quantity} requested)`
+        );
+      }
+
+      const now = new Date();
+      const inventoryUpdate = await tx.inventory.updateMany({
+        where: {
+          id: inventory.id,
+          quantity_on_hand: inventory.quantity_on_hand,
+          quantity_reserved: inventory.quantity_reserved,
+        },
+        data: {
+          quantity_on_hand: { decrement: quantity },
+          last_sold_at: now,
+        },
+      });
+      if (inventoryUpdate.count !== 1) {
+        throw new ConflictError('Inventory changed during sale, please retry');
+      }
+
+      let remaining = quantity;
+      for (const lot of inventory.inventory_lots) {
+        if (remaining <= 0) break;
+
+        const lotAvailable = lot.quantity_on_hand - lot.quantity_reserved;
+        if (lotAvailable <= 0) continue;
+
+        const soldQty = Math.min(lotAvailable, remaining);
+        const lotUpdate = await tx.inventoryLot.updateMany({
+          where: {
+            id: lot.id,
+            quantity_on_hand: lot.quantity_on_hand,
+            quantity_reserved: lot.quantity_reserved,
+          },
+          data: { quantity_on_hand: { decrement: soldQty } },
+        });
+        if (lotUpdate.count !== 1) {
+          throw new ConflictError('Inventory lot changed during sale, please retry');
+        }
+
+        remaining -= soldQty;
+      }
+
+      if (remaining > 0) {
+        throw new InsufficientStockError('Inventory lots have insufficient quantity for this sale');
+      }
+
+      const volumeUpdate = await tx.location.updateMany({
+        where: {
+          id: location_id,
+          current_volume: { gte: quantity },
+        },
+        data: { current_volume: { decrement: quantity } },
+      });
+      if (volumeUpdate.count !== 1) {
+        throw new ConflictError('Location volume changed during sale, please retry');
+      }
+
+      const movement = await tx.stockMovement.create({
+        data: {
+          product_id,
+          user_id,
+          from_location_id: location_id,
+          quantity,
+          movement_type: 'OUTGOING',
+          status: 'COMPLETED',
+          reason: reason || 'SALE',
+          approved_at: now,
+          completed_at: now,
+        },
+      });
+
+      await tx.product.update({
+        where: { id: product_id },
+        data: { sold_count: { increment: quantity } },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          user_id,
+          action: 'STOCK_SOLD',
+          entity_type: 'INVENTORY',
+          entity_id: inventory.id,
+          old_value: { location: location_id, quantity: inventory.quantity_on_hand },
+          new_value: { location: location_id, quantity: inventory.quantity_on_hand - quantity },
+          reason: reason || 'SALE',
+        },
+      });
+
+      const updatedInventory = await tx.inventory.findUnique({ where: { id: inventory.id } });
+      logger.info(`Sale completed: ${quantity} units of product ${product_id} from ${location_id}`);
+      return { inventory: updatedInventory, movement, sold_quantity: quantity };
+    },
+    { isolationLevel: 'Serializable', timeout: 30000 }
+  );
+
+  await queueInventoryEventEmail(user_id, {
+    event_type: 'inventory.stock_sold',
+    subject: 'LeanStock sale completed',
+    text: `Sale completed for product ${product_id}: ${quantity} units sold.`,
+    html: `<p>Sale completed for product <strong>${product_id}</strong>: ${quantity} units sold.</p>`,
+  });
+
+  return result;
+}
+
+async function listInventory(query, user) {
   const { limit, cursor } = getPaginationParams(query);
   const { product_id, location_id, low_stock } = query;
 
-  const where = { location: { is: { warehouse: { is: { is_hidden: false } } } } };
+  const where = {
+    product: { is: tenantWhere(user) },
+    location: { is: { warehouse: { is: { is_hidden: false, ...tenantWhere(user) } } } },
+  };
   if (product_id) where.product_id = product_id;
   if (location_id) where.location_id = location_id;
   if (cursor) where.id = { gt: cursor.id };
@@ -314,9 +462,13 @@ async function listInventory(query) {
   return buildPaginationResponse(items, limit);
 }
 
-async function getInventoryById(id) {
+async function getInventoryById(id, user) {
   const inv = await prisma.inventory.findFirst({
-    where: { id, location: { is: { warehouse: { is: { is_hidden: false } } } } },
+    where: {
+      id,
+      product: { is: tenantWhere(user) },
+      location: { is: { warehouse: { is: { is_hidden: false, ...tenantWhere(user) } } } },
+    },
     include: {
       product: true,
       location: { include: { warehouse: true } },
@@ -327,9 +479,15 @@ async function getInventoryById(id) {
   return inv;
 }
 
-async function reserveInventory({ inventory_id, quantity, user_id }) {
+async function reserveInventory({ inventory_id, quantity, user_id, user }) {
   return prisma.$transaction(async (tx) => {
-    const inv = await tx.inventory.findUnique({ where: { id: inventory_id } });
+    const inv = await tx.inventory.findFirst({
+      where: {
+        id: inventory_id,
+        product: { is: tenantWhere(user) },
+        location: { is: { warehouse: { is: { is_hidden: false, ...tenantWhere(user) } } } },
+      },
+    });
     if (!inv) throw new NotFoundError('Inventory record');
 
     const available = inv.quantity_on_hand - inv.quantity_reserved;
@@ -365,9 +523,15 @@ async function reserveInventory({ inventory_id, quantity, user_id }) {
   });
 }
 
-async function releaseReservation({ inventory_id, quantity, user_id }) {
+async function releaseReservation({ inventory_id, quantity, user_id, user }) {
   return prisma.$transaction(async (tx) => {
-    const inv = await tx.inventory.findUnique({ where: { id: inventory_id } });
+    const inv = await tx.inventory.findFirst({
+      where: {
+        id: inventory_id,
+        product: { is: tenantWhere(user) },
+        location: { is: { warehouse: { is: { is_hidden: false, ...tenantWhere(user) } } } },
+      },
+    });
     if (!inv) throw new NotFoundError('Inventory record');
     if (inv.quantity_reserved < quantity) {
       throw new ConflictError(`Cannot release ${quantity} - only ${inv.quantity_reserved} reserved`);
@@ -403,6 +567,7 @@ async function releaseReservation({ inventory_id, quantity, user_id }) {
 module.exports = {
   transferStockBetweenLocations,
   receiveStock,
+  sellStock,
   listInventory,
   getInventoryById,
   reserveInventory,

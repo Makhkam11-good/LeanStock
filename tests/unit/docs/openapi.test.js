@@ -28,6 +28,7 @@ const documentedRoutes = {
   '/inventory/{id}': ['get'],
   '/inventory/transfer': ['post'],
   '/inventory/receive': ['post'],
+  '/inventory/sell': ['post'],
   '/inventory/{id}/reserve': ['post'],
   '/inventory/{id}/release-reservation': ['post'],
   '/warehouses': ['get', 'post'],
@@ -104,14 +105,14 @@ describe('OpenAPI Swagger documentation', () => {
     expect(schema.properties.movement_type.enum).toEqual(['INCOMING']);
   });
 
-  test('Swagger documents admin-only user registration', () => {
+  test('Swagger documents tenant-manager user registration', () => {
     const operation = spec.paths['/auth/register'].post;
     const loginSchema = spec.components.schemas.LoginRequest;
     const registerSchema = spec.components.schemas.RegisterRequest;
 
     expect(operation.security).toEqual([{ bearerAuth: [] }]);
     expect(operation.summary).toBe('Create a user and assign a role');
-    expect(operation.description).toContain('User self-registration is disabled');
+    expect(operation.description).toContain('Tenant MANAGER users can add workers');
     expect(loginSchema.properties.email.example).toBe('admin@leanstock.com');
     expect(loginSchema.properties.password.example).toBe('Admin123');
     expect(registerSchema.properties.role.example).toBe('WAREHOUSE_OPERATOR');

@@ -16,9 +16,17 @@ beforeAll(async () => {
   prisma = getPrismaClient();
 
   // Create and login a manager for inventory tests.
+  const tenant = await prisma.tenant.create({
+    data: {
+      name: `Inventory Test Company ${unique}`,
+      slug: `inventorytest-company-${unique}`,
+      is_active: true,
+    },
+  });
   const password_hash = await bcrypt.hash('SecurePass123', 4);
   await prisma.user.create({
     data: {
+      tenant_id: tenant.id,
       email: `inventorytest-manager-${unique}@example.com`,
       password_hash,
       first_name: 'Inv',
@@ -45,6 +53,19 @@ afterAll(async () => {
   await prisma.auditLog.deleteMany({ where: { user: { email: { contains: 'inventorytest' } } } });
   await prisma.stockMovement.deleteMany({ where: { user: { email: { contains: 'inventorytest' } } } });
   await prisma.user.deleteMany({ where: { email: { contains: 'inventorytest' } } });
+  const tenants = await prisma.tenant.findMany({
+    where: { slug: { contains: 'inventorytest' } },
+    select: { id: true },
+  });
+  const tenantIds = tenants.map(tenant => tenant.id);
+  if (tenantIds.length > 0) {
+    await prisma.inventoryLot.deleteMany({ where: { inventory: { product: { tenant_id: { in: tenantIds } } } } });
+    await prisma.inventory.deleteMany({ where: { product: { tenant_id: { in: tenantIds } } } });
+    await prisma.location.deleteMany({ where: { warehouse: { tenant_id: { in: tenantIds } } } });
+    await prisma.warehouse.deleteMany({ where: { tenant_id: { in: tenantIds } } });
+    await prisma.product.deleteMany({ where: { tenant_id: { in: tenantIds } } });
+    await prisma.tenant.deleteMany({ where: { id: { in: tenantIds } } });
+  }
   await disconnectPrisma();
 });
 
@@ -218,6 +239,30 @@ describe('Warehouse & Location API', () => {
       expect(res.body.data.transferred_quantity).toBe(30);
     });
 
+    test('sells 10 units from location B', async () => {
+      const res = await request(app)
+        .post('/api/v1/inventory/sell')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({
+          product_id: productId,
+          location_id: locationBId,
+          quantity: 10,
+          reason: 'Integration test sale',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.sold_quantity).toBe(10);
+      expect(res.body.data.inventory.quantity_on_hand).toBe(20);
+      expect(res.body.data.movement.movement_type).toBe('OUTGOING');
+
+      const productRes = await request(app)
+        .get(`/api/v1/products/${productId}`)
+        .set('Authorization', `Bearer ${managerToken}`);
+
+      expect(productRes.status).toBe(200);
+      expect(productRes.body.data.sold_count).toBe(10);
+    });
+
     test('verifies source inventory was decremented', async () => {
       const invList = await request(app)
         .get(`/api/v1/inventory?product_id=${productId}&location_id=${locationAId}`)
@@ -238,6 +283,20 @@ describe('Warehouse & Location API', () => {
           product_id: productId,
           from_location_id: locationAId,
           to_location_id: locationBId,
+          quantity: 9999,
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('INSUFFICIENT_STOCK');
+    });
+
+    test('rejects sale when location has insufficient stock', async () => {
+      const res = await request(app)
+        .post('/api/v1/inventory/sell')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({
+          product_id: productId,
+          location_id: locationBId,
           quantity: 9999,
         });
 

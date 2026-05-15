@@ -4,7 +4,13 @@ const crypto = require('crypto');
 const { getPrismaClient } = require('../config/database');
 const { hashPassword, verifyPassword, validatePasswordStrength } = require('../utils/password.util');
 const { signAccessToken, signRefreshToken, verifyRefreshToken, getRefreshTokenExpiresAt } = require('../utils/jwt.util');
-const { AuthenticationError, ConflictError, ValidationError, NotFoundError } = require('../utils/errors');
+const {
+  AuthenticationError,
+  AuthorizationError,
+  ConflictError,
+  ValidationError,
+  NotFoundError,
+} = require('../utils/errors');
 const { enqueueEmail } = require('./emailService');
 const {
   APP_BASE_URL,
@@ -14,6 +20,26 @@ const {
 const logger = require('../utils/logger');
 
 const prisma = getPrismaClient();
+const STAFF_ROLES = new Set(['MANAGER', 'WAREHOUSE_OPERATOR', 'AUDITOR']);
+const USER_SELECT = {
+  id: true,
+  tenant_id: true,
+  email: true,
+  first_name: true,
+  last_name: true,
+  role: true,
+  is_active: true,
+  is_email_verified: true,
+  created_at: true,
+  tenant: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      is_active: true,
+    },
+  },
+};
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -32,6 +58,62 @@ function assertStrongPassword(password, field = 'password') {
   const passwordErrors = validatePasswordStrength(password);
   if (passwordErrors.length > 0) {
     throw new ValidationError('Password does not meet requirements', passwordErrors.map(m => ({ field, message: m })));
+  }
+}
+
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function resolveTenantSlug(companyName, companySlug) {
+  const base = slugify(companySlug || companyName);
+  if (!base) {
+    throw new ValidationError('Company slug is invalid', [
+      { field: 'company_slug', message: 'Use letters, numbers, and separators' },
+    ]);
+  }
+
+  if (companySlug) {
+    const existing = await prisma.tenant.findUnique({ where: { slug: base } });
+    if (existing) throw new ConflictError(`Company slug '${base}' is already taken`);
+    return base;
+  }
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const suffix = attempt === 0 ? '' : `-${crypto.randomBytes(2).toString('hex')}`;
+    const candidate = `${base}${suffix}`;
+    const existing = await prisma.tenant.findUnique({ where: { slug: candidate } });
+    if (!existing) return candidate;
+  }
+
+  throw new ConflictError('Could not generate a unique company slug');
+}
+
+async function assertTenantCanReceiveUsers(tenantId) {
+  if (!tenantId) return null;
+
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  if (!tenant) throw new NotFoundError('Tenant');
+  if (!tenant.is_active) throw new ConflictError('Tenant is not active');
+  return tenant;
+}
+
+function buildTokenPayload(user) {
+  return {
+    sub: user.id,
+    email: user.email,
+    role: user.role,
+    tenant_id: user.tenant_id || null,
+  };
+}
+
+function assertTenantCanLogin(user) {
+  if (user.role !== 'SYSTEM_ADMIN' && user.tenant_id && !user.tenant?.is_active) {
+    throw new AuthenticationError('Tenant is inactive');
   }
 }
 
@@ -110,8 +192,28 @@ async function queuePasswordResetEmail(user) {
   return token;
 }
 
-async function register({ email, password, first_name, last_name, phone, role }) {
+async function register({ email, password, first_name, last_name, phone, role, tenant_id }, actor) {
   assertStrongPassword(password);
+
+  const assignedRole = role || 'WAREHOUSE_OPERATOR';
+  if (!STAFF_ROLES.has(assignedRole)) {
+    throw new AuthorizationError('SYSTEM_ADMIN cannot be created through registration');
+  }
+
+  let assignedTenantId = null;
+  if (actor?.role === 'SYSTEM_ADMIN') {
+    assignedTenantId = tenant_id || actor.tenant_id || null;
+  } else {
+    if (!actor?.tenant_id) {
+      throw new AuthorizationError('Tenant context is required');
+    }
+    if (tenant_id && tenant_id !== actor.tenant_id) {
+      throw new AuthorizationError('Cannot create users in another tenant');
+    }
+    assignedTenantId = actor.tenant_id;
+  }
+
+  await assertTenantCanReceiveUsers(assignedTenantId);
 
   // Check if email is already taken
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -128,20 +230,18 @@ async function register({ email, password, first_name, last_name, phone, role })
       first_name,
       last_name,
       phone,
-      role: role || 'WAREHOUSE_OPERATOR',
+      role: assignedRole,
+      tenant_id: assignedTenantId,
       is_email_verified: true,
     },
-    select: {
-      id: true, email: true, first_name: true, last_name: true, role: true,
-      is_active: true, is_email_verified: true, created_at: true,
-    },
+    select: USER_SELECT,
   });
 
   logger.info(`User registered: ${email} (${user.role})`);
   return user;
 }
 
-async function signup({ email, password, first_name, last_name, phone }) {
+async function signup({ email, password, first_name, last_name, phone, company_name, company_slug }) {
   assertStrongPassword(password);
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -150,31 +250,35 @@ async function signup({ email, password, first_name, last_name, phone }) {
   }
 
   const password_hash = await hashPassword(password);
-  const user = await prisma.user.create({
-    data: {
-      email,
-      password_hash,
-      first_name,
-      last_name,
-      phone,
-      role: 'WAREHOUSE_OPERATOR',
-      is_active: true,
-      is_email_verified: false,
-    },
-    select: {
-      id: true,
-      email: true,
-      first_name: true,
-      last_name: true,
-      role: true,
-      is_active: true,
-      is_email_verified: true,
-      created_at: true,
-    },
+  const slug = await resolveTenantSlug(company_name, company_slug);
+
+  const user = await prisma.$transaction(async (tx) => {
+    const tenant = await tx.tenant.create({
+      data: {
+        name: company_name,
+        slug,
+        is_active: false,
+      },
+    });
+
+    return tx.user.create({
+      data: {
+        tenant_id: tenant.id,
+        email,
+        password_hash,
+        first_name,
+        last_name,
+        phone,
+        role: 'MANAGER',
+        is_active: true,
+        is_email_verified: false,
+      },
+      select: USER_SELECT,
+    });
   });
 
   const verificationToken = await queueVerificationEmail(user);
-  logger.info(`User signed up and verification email queued: ${email}`);
+  logger.info(`Company signup created and verification email queued: ${company_name} (${email})`);
 
   return {
     ...user,
@@ -184,7 +288,10 @@ async function signup({ email, password, first_name, last_name, phone }) {
 }
 
 async function login({ email, password }) {
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { tenant: true },
+  });
 
   if (!user || !user.is_active) {
     throw new AuthenticationError('Invalid email or password');
@@ -193,6 +300,8 @@ async function login({ email, password }) {
   if (!user.is_email_verified) {
     throw new AuthenticationError('Email verification required');
   }
+
+  assertTenantCanLogin(user);
 
   // Check if account is locked
   if (user.locked_until && new Date() < user.locked_until) {
@@ -221,7 +330,7 @@ async function login({ email, password }) {
     data: { failed_login_count: 0, locked_until: null },
   });
 
-  const tokenPayload = { sub: user.id, email: user.email, role: user.role };
+  const tokenPayload = buildTokenPayload(user);
   const accessToken = signAccessToken(tokenPayload);
   const refreshTokenValue = signRefreshToken({ sub: user.id });
 
@@ -246,6 +355,13 @@ async function login({ email, password }) {
       first_name: user.first_name,
       last_name: user.last_name,
       role: user.role,
+      tenant_id: user.tenant_id,
+      tenant: user.tenant ? {
+        id: user.tenant.id,
+        name: user.tenant.name,
+        slug: user.tenant.slug,
+        is_active: user.tenant.is_active,
+      } : null,
     },
   };
 }
@@ -258,7 +374,7 @@ async function refreshAccessToken(refreshTokenValue) {
     // Check if token exists and is not revoked
     const storedToken = await tx.refreshToken.findUnique({
       where: { token: refreshTokenValue },
-      include: { user: true },
+      include: { user: { include: { tenant: true } } },
     });
 
     if (!storedToken || storedToken.revoked || new Date() > storedToken.expires_at) {
@@ -268,6 +384,8 @@ async function refreshAccessToken(refreshTokenValue) {
     if (!storedToken.user.is_active || !storedToken.user.is_email_verified) {
       throw new AuthenticationError('Account is deactivated or not verified');
     }
+
+    assertTenantCanLogin(storedToken.user);
 
     const revokeResult = await tx.refreshToken.updateMany({
       where: {
@@ -282,11 +400,7 @@ async function refreshAccessToken(refreshTokenValue) {
       throw new AuthenticationError('Refresh token is invalid or expired');
     }
 
-    const tokenPayload = {
-      sub: storedToken.user.id,
-      email: storedToken.user.email,
-      role: storedToken.user.role,
-    };
+    const tokenPayload = buildTokenPayload(storedToken.user);
 
     const newAccessToken = signAccessToken(tokenPayload);
     const newRefreshToken = signRefreshToken({ sub: storedToken.user.id });
@@ -347,18 +461,23 @@ async function changePassword(userId, { current_password, new_password }) {
 async function verifyEmail(token) {
   const user = await consumeAuthToken(token, 'EMAIL_VERIFICATION');
 
-  const updated = await prisma.user.update({
-    where: { id: user.id },
-    data: { is_email_verified: true, is_active: true },
-    select: {
-      id: true,
-      email: true,
-      first_name: true,
-      last_name: true,
-      role: true,
-      is_active: true,
-      is_email_verified: true,
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    const verified = await tx.user.update({
+      where: { id: user.id },
+      data: { is_email_verified: true, is_active: true },
+      select: USER_SELECT,
+    });
+
+    if (verified.role === 'MANAGER' && verified.tenant_id) {
+      await tx.tenant.update({
+        where: { id: verified.tenant_id },
+        data: { is_active: true },
+      });
+
+      verified.tenant.is_active = true;
+    }
+
+    return verified;
   });
 
   await enqueueEmail({

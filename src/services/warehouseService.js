@@ -3,14 +3,15 @@
 const { getPrismaClient } = require('../config/database');
 const { NotFoundError, ConflictError } = require('../utils/errors');
 const { getPaginationParams, buildPaginationResponse } = require('../utils/paginator');
+const { tenantWhere, tenantIdForWrite } = require('../utils/tenantScope');
 
 const prisma = getPrismaClient();
 
 // ── Warehouse ──────────────────────────────────────────────────────────────────
 
-async function listWarehouses(query) {
+async function listWarehouses(query, user) {
   const { limit, cursor } = getPaginationParams(query);
-  const where = { is_hidden: false };
+  const where = { is_hidden: false, ...tenantWhere(user) };
   if (cursor) where.id = { gt: cursor.id };
 
   const items = await prisma.warehouse.findMany({
@@ -23,35 +24,48 @@ async function listWarehouses(query) {
   return buildPaginationResponse(items, limit);
 }
 
-async function getWarehouseById(id) {
+async function getWarehouseById(id, user) {
   const wh = await prisma.warehouse.findFirst({
-    where: { id, is_hidden: false },
+    where: { id, is_hidden: false, ...tenantWhere(user) },
     include: { locations: true, _count: { select: { locations: true } } },
   });
   if (!wh) throw new NotFoundError('Warehouse');
   return wh;
 }
 
-async function createWarehouse({ name, country, city }) {
-  const existing = await prisma.warehouse.findUnique({ where: { name } });
+async function createWarehouse({ name, country, city }, user) {
+  const tenant_id = tenantIdForWrite(user);
+  const existing = await prisma.warehouse.findFirst({ where: { tenant_id, name } });
   if (existing) throw new ConflictError(`Warehouse '${name}' already exists`);
-  return prisma.warehouse.create({ data: { name, country, city } });
+  return prisma.warehouse.create({ data: { tenant_id, name, country, city } });
 }
 
-async function updateWarehouse(id, data) {
-  const wh = await prisma.warehouse.findFirst({ where: { id, is_hidden: false } });
+async function updateWarehouse(id, data, user) {
+  const wh = await prisma.warehouse.findFirst({ where: { id, is_hidden: false, ...tenantWhere(user) } });
   if (!wh) throw new NotFoundError('Warehouse');
+
+  if (data.name) {
+    const existing = await prisma.warehouse.findFirst({
+      where: {
+        tenant_id: wh.tenant_id,
+        name: data.name,
+        id: { not: id },
+      },
+    });
+    if (existing) throw new ConflictError(`Warehouse '${data.name}' already exists`);
+  }
+
   return prisma.warehouse.update({ where: { id }, data });
 }
 
-async function closeWarehouse(id) {
-  const wh = await prisma.warehouse.findFirst({ where: { id, is_hidden: false } });
+async function closeWarehouse(id, user) {
+  const wh = await prisma.warehouse.findFirst({ where: { id, is_hidden: false, ...tenantWhere(user) } });
   if (!wh) throw new NotFoundError('Warehouse');
   return prisma.warehouse.update({ where: { id }, data: { status: 'CLOSED' } });
 }
 
-async function hideWarehouse(id) {
-  const wh = await prisma.warehouse.findUnique({ where: { id } });
+async function hideWarehouse(id, user) {
+  const wh = await prisma.warehouse.findFirst({ where: { id, ...tenantWhere(user) } });
   if (!wh) throw new NotFoundError('Warehouse');
 
   if (wh.is_hidden) return wh;
@@ -68,10 +82,10 @@ async function hideWarehouse(id) {
 
 // ── Location ───────────────────────────────────────────────────────────────────
 
-async function listLocations(query) {
+async function listLocations(query, user) {
   const { limit, cursor } = getPaginationParams(query);
   const { warehouse_id } = query;
-  const where = { warehouse: { is: { is_hidden: false } } };
+  const where = { warehouse: { is: { is_hidden: false, ...tenantWhere(user) } } };
   if (warehouse_id) where.warehouse_id = warehouse_id;
   if (cursor) where.id = { gt: cursor.id };
 
@@ -85,9 +99,9 @@ async function listLocations(query) {
   return buildPaginationResponse(items, limit);
 }
 
-async function getLocationById(id) {
+async function getLocationById(id, user) {
   const loc = await prisma.location.findFirst({
-    where: { id, warehouse: { is: { is_hidden: false } } },
+    where: { id, warehouse: { is: { is_hidden: false, ...tenantWhere(user) } } },
     include: {
       warehouse: true,
       _count: { select: { inventory_stocks: true } },
@@ -97,8 +111,8 @@ async function getLocationById(id) {
   return loc;
 }
 
-async function createLocation({ warehouse_id, name, address, capacity_units }) {
-  const wh = await prisma.warehouse.findUnique({ where: { id: warehouse_id } });
+async function createLocation({ warehouse_id, name, address, capacity_units }, user) {
+  const wh = await prisma.warehouse.findFirst({ where: { id: warehouse_id, ...tenantWhere(user) } });
   if (!wh) throw new NotFoundError('Warehouse');
   if (wh.is_hidden) throw new ConflictError('Cannot create location in a hidden warehouse');
   if (wh.status !== 'ACTIVE') throw new ConflictError('Cannot create location in a warehouse that is not active');
@@ -113,14 +127,14 @@ async function createLocation({ warehouse_id, name, address, capacity_units }) {
   });
 }
 
-async function updateLocation(id, data) {
+async function updateLocation(id, data, user) {
   const loc = await prisma.location.findFirst({
-    where: { id, warehouse: { is: { is_hidden: false } } },
+    where: { id, warehouse: { is: { is_hidden: false, ...tenantWhere(user) } } },
   });
   if (!loc) throw new NotFoundError('Location');
 
   if (data.warehouse_id) {
-    const wh = await prisma.warehouse.findUnique({ where: { id: data.warehouse_id } });
+    const wh = await prisma.warehouse.findFirst({ where: { id: data.warehouse_id, ...tenantWhere(user) } });
     if (!wh) throw new NotFoundError('Warehouse');
     if (wh.is_hidden) throw new ConflictError('Cannot move location to a hidden warehouse');
     if (wh.status !== 'ACTIVE') throw new ConflictError('Cannot move location to a warehouse that is not active');
@@ -129,9 +143,9 @@ async function updateLocation(id, data) {
   return prisma.location.update({ where: { id }, data });
 }
 
-async function deleteLocation(id) {
+async function deleteLocation(id, user) {
   const loc = await prisma.location.findFirst({
-    where: { id, warehouse: { is: { is_hidden: false } } },
+    where: { id, warehouse: { is: { is_hidden: false, ...tenantWhere(user) } } },
     include: { _count: { select: { inventory_stocks: true } } },
   });
   if (!loc) throw new NotFoundError('Location');

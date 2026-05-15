@@ -17,7 +17,14 @@ async function authenticate(req, res, next) {
     const decoded = verifyAccessToken(token);
     const user = await getPrismaClient().user.findUnique({
       where: { id: decoded.sub },
-      select: { id: true, is_active: true, is_email_verified: true, role: true },
+      select: {
+        id: true,
+        tenant_id: true,
+        is_active: true,
+        is_email_verified: true,
+        role: true,
+        tenant: { select: { is_active: true } },
+      },
     });
 
     if (!user || !user.is_active) {
@@ -28,7 +35,12 @@ async function authenticate(req, res, next) {
       throw new AuthenticationError('Email verification required');
     }
 
+    if (user.role !== 'SYSTEM_ADMIN' && user.tenant_id && !user.tenant?.is_active) {
+      throw new AuthenticationError('Tenant is inactive');
+    }
+
     decoded.role = user.role;
+    decoded.tenant_id = user.tenant_id;
     req.user = decoded;
     next();
   } catch (err) {

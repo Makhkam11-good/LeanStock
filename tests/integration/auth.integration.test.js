@@ -16,6 +16,7 @@ beforeAll(async () => {
   await prisma.refreshToken.deleteMany({});
   await prisma.auditLog.deleteMany({});
   await prisma.user.deleteMany({ where: { email: { contains: 'integrationtest' } } });
+  await prisma.tenant.deleteMany({ where: { slug: { contains: 'integrationtest' } } });
 
   const password_hash = await bcrypt.hash('AdminPass123', 4);
   await prisma.user.create({
@@ -39,6 +40,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await prisma.refreshToken.deleteMany({});
   await prisma.user.deleteMany({ where: { email: { contains: 'integrationtest' } } });
+  await prisma.tenant.deleteMany({ where: { slug: { contains: 'integrationtest' } } });
   await disconnectPrisma();
 });
 
@@ -108,6 +110,8 @@ describe('Auth API Integration Tests', () => {
 
   describe('POST /api/v1/auth/signup and email verification', () => {
     const signupUser = {
+      company_name: 'Integration Test Company',
+      company_slug: `integrationtest-company-${Date.now()}`,
       email: `integrationtest.signup.${Date.now()}@example.com`,
       password: 'SecurePass123',
       first_name: 'Signup',
@@ -120,6 +124,9 @@ describe('Auth API Integration Tests', () => {
         .send(signupUser);
 
       expect(res.status).toBe(201);
+      expect(res.body.data.role).toBe('MANAGER');
+      expect(res.body.data.tenant).toBeDefined();
+      expect(res.body.data.tenant.is_active).toBe(false);
       expect(res.body.data.is_email_verified).toBe(false);
       expect(res.body.data.verification_required).toBe(true);
       expect(res.body.data.verification_token).toBeDefined();
@@ -134,11 +141,26 @@ describe('Auth API Integration Tests', () => {
         .send({ token: res.body.data.verification_token });
       expect(verifyRes.status).toBe(200);
       expect(verifyRes.body.data.is_email_verified).toBe(true);
+      expect(verifyRes.body.data.tenant.is_active).toBe(true);
 
       const loginAfterVerify = await request(app)
         .post('/api/v1/auth/login')
         .send({ email: signupUser.email, password: signupUser.password });
       expect(loginAfterVerify.status).toBe(200);
+
+      const workerRes = await request(app)
+        .post('/api/v1/auth/register')
+        .set('Authorization', `Bearer ${loginAfterVerify.body.data.access_token}`)
+        .send({
+          email: `integrationtest.worker.${Date.now()}@example.com`,
+          password: 'SecurePass123',
+          first_name: 'Worker',
+          last_name: 'User',
+          role: 'WAREHOUSE_OPERATOR',
+        });
+      expect(workerRes.status).toBe(201);
+      expect(workerRes.body.data.role).toBe('WAREHOUSE_OPERATOR');
+      expect(workerRes.body.data.tenant_id).toBe(res.body.data.tenant_id);
     });
   });
 
@@ -204,8 +226,8 @@ describe('Auth API Integration Tests', () => {
   // ── RBAC tests ───────────────────────────────────────────────────────────────
 
   describe('RBAC - Role-based access control', () => {
-    test('WAREHOUSE_OPERATOR cannot create products (403)', async () => {
-      // The default role is WAREHOUSE_OPERATOR
+    test('admin-created default WAREHOUSE_OPERATOR cannot create products (403)', async () => {
+      // Admin-created users without an explicit role still default to WAREHOUSE_OPERATOR.
       const res = await request(app)
         .post('/api/v1/products')
         .set('Authorization', `Bearer ${accessToken}`)

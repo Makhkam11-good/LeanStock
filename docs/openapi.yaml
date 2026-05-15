@@ -147,12 +147,32 @@ components:
           type: integer
           example: 20
 
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          example: clxtenant001
+        name:
+          type: string
+          example: Acme Logistics
+        slug:
+          type: string
+          example: acme-logistics
+        is_active:
+          type: boolean
+          example: true
+
     User:
       type: object
       properties:
         id:
           type: string
           example: clxuser001
+        tenant_id:
+          type: string
+          nullable: true
+          example: clxtenant001
         email:
           type: string
           format: email
@@ -173,18 +193,32 @@ components:
         is_email_verified:
           type: boolean
           example: true
+        tenant:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/Tenant'
         created_at:
           type: string
           format: date-time
 
     SignupRequest:
       type: object
-      required: [email, password, first_name, last_name]
+      required: [company_name, email, password, first_name, last_name]
       properties:
+        company_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Acme Logistics
+        company_slug:
+          type: string
+          minLength: 2
+          maxLength: 80
+          example: acme-logistics
         email:
           type: string
           format: email
-          example: new.operator@leanstock.com
+          example: admin@acme.example
         password:
           type: string
           minLength: 8
@@ -226,9 +260,13 @@ components:
           example: "+77001234567"
         role:
           type: string
-          enum: [MANAGER, WAREHOUSE_OPERATOR, AUDITOR, SYSTEM_ADMIN]
+          enum: [MANAGER, WAREHOUSE_OPERATOR, AUDITOR]
           default: WAREHOUSE_OPERATOR
           example: WAREHOUSE_OPERATOR
+        tenant_id:
+          type: string
+          description: Optional for SYSTEM_ADMIN. Tenant managers always create users inside their own company.
+          example: clxtenant001
 
     LoginRequest:
       type: object
@@ -348,6 +386,9 @@ components:
         id:
           type: string
           example: clxprod001
+        tenant_id:
+          type: string
+          example: clxtenant001
         sku:
           type: string
           example: WDG-001
@@ -446,6 +487,9 @@ components:
         id:
           type: string
           example: clxwh001
+        tenant_id:
+          type: string
+          example: clxtenant001
         name:
           type: string
           example: Main Almaty Warehouse
@@ -780,6 +824,43 @@ components:
             movement:
               $ref: '#/components/schemas/StockMovement'
 
+    SellStockRequest:
+      type: object
+      required: [product_id, location_id, quantity]
+      properties:
+        product_id:
+          type: string
+          example: clxprod001
+        location_id:
+          type: string
+          example: clxloc001
+        quantity:
+          type: integer
+          minimum: 1
+          example: 3
+        reason:
+          type: string
+          example: Customer sale
+
+    SellStockResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required: [inventory, movement, sold_quantity]
+          properties:
+            inventory:
+              $ref: '#/components/schemas/Inventory'
+            movement:
+              $ref: '#/components/schemas/StockMovement'
+            sold_quantity:
+              type: integer
+              example: 3
+
     QuantityRequest:
       type: object
       required: [quantity]
@@ -819,7 +900,7 @@ paths:
     post:
       tags: [Auth]
       summary: Sign up and queue verification email
-      description: Creates a warehouse operator account that cannot access protected routes until email verification succeeds.
+      description: Creates a new company tenant and its first MANAGER account. The manager cannot access protected routes until email verification succeeds.
       requestBody:
         required: true
         content:
@@ -852,9 +933,9 @@ paths:
       tags: [Auth]
       summary: Create a user and assign a role
       description: |
-        User self-registration is disabled. Only a SYSTEM_ADMIN can create users
-        and assign roles. Login as the seeded admin account first, then authorize
-        Swagger with `Bearer <access_token>` before calling this endpoint.
+        Creates staff inside a company. Tenant MANAGER users can add workers
+        for their own company; SYSTEM_ADMIN can assist globally and may pass
+        `tenant_id`. Public company signup is handled by `/auth/signup`.
       security:
         - bearerAuth: []
       requestBody:
@@ -1439,6 +1520,40 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /inventory/sell:
+    post:
+      tags: [Inventory]
+      summary: Sell stock from a location
+      description: |
+        Completes an OUTGOING stock movement for a customer sale, decrements
+        available inventory and FIFO lots, updates `last_sold_at`, increments
+        product `sold_count`, and records an audit log.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SellStockRequest'
+      responses:
+        '201':
+          description: Stock sold.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellStockResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
 
