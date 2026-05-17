@@ -9,8 +9,10 @@ const productRoutes = require('./products.routes');
 const { warehouseRouter, locationRouter } = require('./warehouses.routes');
 const reportRoutes = require('./reports.routes');
 const jobRoutes = require('./jobs.routes');
+const adminRoutes = require('./admin.routes');
 
 router.use('/auth', authRoutes);
+router.use('/admin', adminRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/products', productRoutes);
 router.use('/warehouses', warehouseRouter);

@@ -28,6 +28,8 @@ tags:
     description: Dead stock, decay history, and low stock reports.
   - name: Jobs
     description: Background job visibility for Redis-backed queues.
+  - name: Admin
+    description: System administrator tenant management.
 
 components:
   securitySchemes:
@@ -162,6 +164,38 @@ components:
         is_active:
           type: boolean
           example: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TenantCounts:
+      type: object
+      properties:
+        users:
+          type: integer
+          example: 3
+        warehouses:
+          type: integer
+          example: 2
+        products:
+          type: integer
+          example: 14
+
+    TenantDetail:
+      allOf:
+        - $ref: '#/components/schemas/Tenant'
+        - type: object
+          properties:
+            _count:
+              $ref: '#/components/schemas/TenantCounts'
+            users:
+              type: array
+              description: First 20 users in the tenant.
+              items:
+                $ref: '#/components/schemas/User'
 
     User:
       type: object
@@ -896,6 +930,143 @@ components:
           format: date-time
 
 paths:
+  /admin/tenants:
+    get:
+      tags: [Admin]
+      summary: List companies
+      description: SYSTEM_ADMIN-only endpoint for listing tenant companies.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/AfterQuery'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by company name or slug.
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+          description: Filter active or deactivated companies.
+      responses:
+        '200':
+          description: Cursor-paginated tenant list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TenantDetail'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /admin/tenants/{id}:
+    get:
+      tags: [Admin]
+      summary: Get company by ID
+      description: SYSTEM_ADMIN-only endpoint for inspecting one tenant company.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Tenant details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/TenantDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /admin/tenants/{id}/activate:
+    patch:
+      tags: [Admin]
+      summary: Activate company
+      description: SYSTEM_ADMIN-only endpoint for allowing a tenant company to log in and use the API again.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Tenant activated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/TenantDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /admin/tenants/{id}/deactivate:
+    patch:
+      tags: [Admin]
+      summary: Deactivate company
+      description: SYSTEM_ADMIN-only soft delete for companies. The tenant stays in the database, but users from that tenant can no longer log in or call protected endpoints.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Tenant deactivated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/TenantDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /auth/signup:
     post:
       tags: [Auth]
