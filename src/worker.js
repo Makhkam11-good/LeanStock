@@ -21,27 +21,62 @@ const {
 const logger = require('./utils/logger');
 
 let shuttingDown = false;
-let healthServer;
+let healthServers = [];
+
+function normalizePort(value) {
+  const port = parseInt(value, 10);
+  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
+}
+
+function isDokkuRuntime() {
+  return Object.entries(process.env).some(([key, value]) => (
+    key.startsWith('DOKKU_') ||
+    (key.endsWith('_URL') && typeof value === 'string' && value.includes('.web:5000'))
+  ));
+}
+
+function resolveHealthPorts() {
+  const ports = [
+    normalizePort(process.env.PORT),
+    normalizePort(process.env.APP_PORT),
+    normalizePort(process.env.WORKER_HEALTH_PORT),
+    3000,
+  ];
+
+  if (isDokkuRuntime()) {
+    ports.push(5000);
+  }
+
+  return [...new Set(ports.filter(Boolean))];
+}
 
 function startHealthServer() {
-  if (process.env.WORKER_HEALTH_ENABLED === 'false' || healthServer) {
+  if (process.env.WORKER_HEALTH_ENABLED === 'false' || healthServers.length > 0) {
     return;
   }
 
-  const port = parseInt(process.env.PORT || process.env.APP_PORT || process.env.WORKER_HEALTH_PORT || '3000', 10);
-  healthServer = http.createServer((req, res) => {
-    if (req.url === '/health') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', service: 'worker' }));
-      return;
-    }
+  healthServers = resolveHealthPorts().map(port => {
+    const server = http.createServer((req, res) => {
+      if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', service: 'worker' }));
+        return;
+      }
 
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'not_found' }));
-  });
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'not_found' }));
+    });
 
-  healthServer.listen(port, '0.0.0.0', () => {
-    logger.info(`[Worker] Health check listening on port ${port}`);
+    server.listen(port, '0.0.0.0', () => {
+      logger.info(`[Worker] Health check listening on port ${port}`);
+    });
+
+    server.on('error', err => {
+      logger.error(`[Worker] Health check failed on port ${port}`, { error: err.message });
+      process.exit(1);
+    });
+
+    return server;
   });
 }
 
@@ -85,15 +120,14 @@ async function startWorker() {
 }
 
 function closeHealthServer() {
-  if (!healthServer) {
+  if (healthServers.length === 0) {
     return Promise.resolve();
   }
 
-  return new Promise(resolve => {
-    healthServer.close(() => {
-      healthServer = undefined;
-      resolve();
-    });
+  return Promise.all(healthServers.map(server => new Promise(resolve => {
+    server.close(() => resolve());
+  }))).then(() => {
+    healthServers = [];
   });
 }
 

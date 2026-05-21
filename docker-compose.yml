@@ -12,7 +12,6 @@ services:
       NODE_ENV: ${ENVIRONMENT:-development}
       APP_PORT: ${APP_PORT:-}
       BACKEND_PORT: ${BACKEND_PORT:-3000}
-      PORT: ${PORT:-}
       APP_HOST: 0.0.0.0
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://leanstock:leanstock_pass@postgres:5432/leanstock}
       COMPOSE_DATABASE_URL: ${COMPOSE_DATABASE_URL:-}
@@ -73,7 +72,6 @@ services:
       NODE_ENV: ${ENVIRONMENT:-development}
       APP_PORT: ${APP_PORT:-}
       BACKEND_PORT: ${BACKEND_PORT:-3000}
-      PORT: ${PORT:-}
       APP_HOST: 0.0.0.0
       APP_BASE_URL: ${APP_BASE_URL:-}
       API_URL: ${API_URL:-}
@@ -162,22 +160,6 @@ services:
       - "6379:6379"
     networks:
       - leanstock-network
-
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: leanstock-pgadmin
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@leanstock.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin12345}
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
-    networks:
-      - leanstock-network
-    profiles:
-      - tools
 
 volumes:
   postgres-data:
