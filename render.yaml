@@ -1,0 +1,184 @@
+services:
+  - type: keyvalue
+    name: makhkam11-leanstock-redis
+    plan: free
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
+
+  - type: web
+    name: makhkam11-leanstock-api
+    runtime: docker
+    plan: free
+    region: oregon
+    repo: https://github.com/Makhkam11-good/LeanStock
+    branch: master
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: SERVICE_ROLE
+        value: api
+      - key: NODE_ENV
+        value: production
+      - key: ENVIRONMENT
+        value: production
+      - key: APP_HOST
+        value: 0.0.0.0
+      - key: APP_PORT
+        value: "10000"
+      - key: PORT
+        value: "10000"
+      - key: CORS_ORIGIN
+        value: https://makhkam11-leanstock-frontend.onrender.com
+      - key: FRONTEND_URL
+        value: https://makhkam11-leanstock-frontend.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: makhkam11-leanstock-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: makhkam11-leanstock-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: EMAIL_PROVIDER
+        value: sendgrid
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: CRON_ENABLED
+        value: "true"
+      - key: APP_LOG_LEVEL
+        value: info
+      - key: BCRYPT_ROUNDS
+        value: "12"
+      - key: DEFAULT_PAGE_SIZE
+        value: "20"
+      - key: MAX_PAGE_SIZE
+        value: "100"
+      - key: RATE_LIMIT_AUTH_MAX
+        value: "5"
+      - key: RATE_LIMIT_AUTH_WINDOW_MS
+        value: "60000"
+      - key: DEAD_STOCK_THRESHOLD_DAYS
+        value: "30"
+      - key: DEAD_STOCK_DECAY_PERCENT
+        value: "10"
+      - key: DEAD_STOCK_DECAY_MAX_PERCENT
+        value: "50"
+      - key: DEAD_STOCK_DECAY_SCHEDULE
+        value: "0 2 * * *"
+
+  - type: web
+    name: makhkam11-leanstock-worker
+    runtime: docker
+    plan: free
+    region: oregon
+    repo: https://github.com/Makhkam11-good/LeanStock
+    branch: master
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: SERVICE_ROLE
+        value: worker
+      - key: SKIP_MIGRATIONS
+        value: "true"
+      - key: NODE_ENV
+        value: production
+      - key: ENVIRONMENT
+        value: production
+      - key: APP_HOST
+        value: 0.0.0.0
+      - key: APP_PORT
+        value: "10000"
+      - key: PORT
+        value: "10000"
+      - key: CORS_ORIGIN
+        value: https://makhkam11-leanstock-frontend.onrender.com
+      - key: FRONTEND_URL
+        value: https://makhkam11-leanstock-frontend.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: makhkam11-leanstock-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: makhkam11-leanstock-redis
+          property: connectionString
+      - key: JWT_SECRET
+        fromService:
+          type: web
+          name: makhkam11-leanstock-api
+          envVarKey: JWT_SECRET
+      - key: JWT_REFRESH_SECRET
+        fromService:
+          type: web
+          name: makhkam11-leanstock-api
+          envVarKey: JWT_REFRESH_SECRET
+      - key: EMAIL_PROVIDER
+        value: sendgrid
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: CRON_ENABLED
+        value: "true"
+      - key: APP_LOG_LEVEL
+        value: info
+      - key: BCRYPT_ROUNDS
+        value: "12"
+      - key: DEFAULT_PAGE_SIZE
+        value: "20"
+      - key: MAX_PAGE_SIZE
+        value: "100"
+      - key: RATE_LIMIT_AUTH_MAX
+        value: "5"
+      - key: RATE_LIMIT_AUTH_WINDOW_MS
+        value: "60000"
+      - key: DEAD_STOCK_THRESHOLD_DAYS
+        value: "30"
+      - key: DEAD_STOCK_DECAY_PERCENT
+        value: "10"
+      - key: DEAD_STOCK_DECAY_MAX_PERCENT
+        value: "50"
+      - key: DEAD_STOCK_DECAY_SCHEDULE
+        value: "0 2 * * *"
+
+  - type: web
+    name: makhkam11-leanstock-frontend
+    runtime: docker
+    plan: free
+    region: oregon
+    repo: https://github.com/Makhkam11-good/LeanStock
+    branch: master
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: VITE_API_BASE_URL
+        value: /api/v1
+      - key: API_PROXY_URL
+        value: https://makhkam11-leanstock-api.onrender.com
+
+databases:
+  - name: makhkam11-leanstock-postgres
+    databaseName: leanstock
+    user: leanstock
+    plan: free
+    region: oregon
+    postgresMajorVersion: 15
