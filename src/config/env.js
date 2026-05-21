@@ -37,6 +37,22 @@ aliasEnv('SENDGRID_API_KEY', 'EMAIL_API_KEY');
 aliasEnv('EMAIL_FROM', 'EMAIL_FROM_ADDRESS');
 aliasEnv('CORS_ORIGIN', 'CORS_ORIGINS');
 
+function isLocalDatabaseUrl(url) {
+  return /@(localhost|127\.0\.0\.1)(:|\/)/.test(url);
+}
+
+if (
+  process.env.PLATFORM_DATABASE_URL &&
+  !process.env.COMPOSE_DATABASE_URL &&
+  !isLocalDatabaseUrl(process.env.PLATFORM_DATABASE_URL)
+) {
+  process.env.DATABASE_URL = process.env.PLATFORM_DATABASE_URL;
+}
+
+if (!process.env.EMAIL_PROVIDER && process.env.SENDGRID_API_KEY) {
+  process.env.EMAIL_PROVIDER = 'sendgrid';
+}
+
 const REQUIRED_VARS = [
   'DATABASE_URL',
   'JWT_SECRET',

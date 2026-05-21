@@ -9,14 +9,16 @@ services:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
       NODE_ENV: ${ENVIRONMENT:-development}
-      APP_PORT: ${BACKEND_PORT:-3000}
+      APP_PORT: ${PORT:-${BACKEND_PORT:-3000}}
       APP_HOST: 0.0.0.0
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://leanstock:leanstock_pass@postgres:5432/leanstock}
-      JWT_SECRET: ${JWT_SECRET_KEY:-dev-jwt-secret-min-32-chars-change-in-production-please}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET_KEY:-dev-refresh-secret-min-32-chars-change-in-production-please}
+      COMPOSE_DATABASE_URL: ${COMPOSE_DATABASE_URL:-}
+      PLATFORM_DATABASE_URL: ${DATABASE_URL:-}
+      JWT_SECRET: ${JWT_SECRET:-${JWT_SECRET_KEY:-dev-jwt-secret-min-32-chars-change-in-production-please}}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-${JWT_REFRESH_SECRET_KEY:-dev-refresh-secret-min-32-chars-change-in-production-please}}
       JWT_ACCESS_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 7d
-      CORS_ORIGIN: ${CORS_ORIGINS:-http://localhost:3001}
+      CORS_ORIGIN: ${CORS_ORIGIN:-${CORS_ORIGINS:-http://localhost:3001}}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
       RATE_LIMIT_AUTH_MAX: 100
       RATE_LIMIT_AUTH_WINDOW_MS: 60000
@@ -32,9 +34,9 @@ services:
       SYSTEM_USER_ID: system
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       REDIS_REQUIRED: true
-      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-mock}
-      EMAIL_FROM: ${EMAIL_FROM_ADDRESS:-no-reply@leanstock.local}
-      SENDGRID_API_KEY: ${EMAIL_API_KEY:-}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      EMAIL_FROM: ${EMAIL_FROM:-${EMAIL_FROM_ADDRESS:-no-reply@leanstock.local}}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-${EMAIL_API_KEY:-}}
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,13 +57,15 @@ services:
     environment:
       NODE_ENV: ${ENVIRONMENT:-development}
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://leanstock:leanstock_pass@postgres:5432/leanstock}
-      JWT_SECRET: ${JWT_SECRET_KEY:-dev-jwt-secret-min-32-chars-change-in-production-please}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET_KEY:-dev-refresh-secret-min-32-chars-change-in-production-please}
+      COMPOSE_DATABASE_URL: ${COMPOSE_DATABASE_URL:-}
+      PLATFORM_DATABASE_URL: ${DATABASE_URL:-}
+      JWT_SECRET: ${JWT_SECRET:-${JWT_SECRET_KEY:-dev-jwt-secret-min-32-chars-change-in-production-please}}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-${JWT_REFRESH_SECRET_KEY:-dev-refresh-secret-min-32-chars-change-in-production-please}}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       REDIS_REQUIRED: true
-      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-mock}
-      EMAIL_FROM: ${EMAIL_FROM_ADDRESS:-no-reply@leanstock.local}
-      SENDGRID_API_KEY: ${EMAIL_API_KEY:-}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      EMAIL_FROM: ${EMAIL_FROM:-${EMAIL_FROM_ADDRESS:-no-reply@leanstock.local}}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-${EMAIL_API_KEY:-}}
       SYSTEM_USER_ID: system
     depends_on:
       postgres:
@@ -133,8 +137,8 @@ services:
     container_name: leanstock-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@leanstock.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@leanstock.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin12345}
     ports:
       - "5050:80"
     depends_on:
