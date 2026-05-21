@@ -1,7 +1,29 @@
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "../auth/tokenStore";
 import type { ApiErrorBody, ApiResponse, RefreshResponse } from "../types/api";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api/v1";
+function resolveApiBaseUrl() {
+  const configured = import.meta.env.VITE_API_BASE_URL;
+
+  if (configured && !configured.includes("localhost") && !configured.includes("127.0.0.1")) {
+    return configured.replace(/\/$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+
+    if (hostname.includes("-frontend")) {
+      return `${protocol}//${hostname.replace("-frontend", "-api")}/api/v1`;
+    }
+
+    if (hostname.includes("frontend")) {
+      return `${protocol}//${hostname.replace("frontend", "api")}/api/v1`;
+    }
+  }
+
+  return (configured ?? "http://localhost:3000/api/v1").replace(/\/$/, "");
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export class ApiError extends Error {
   status: number;

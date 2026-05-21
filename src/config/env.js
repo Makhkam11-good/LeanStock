@@ -56,12 +56,34 @@ function isLocalDatabaseUrl(url) {
   return /@(localhost|127\.0\.0\.1)(:|\/)/.test(url);
 }
 
-if (
-  process.env.PLATFORM_DATABASE_URL &&
-  !process.env.COMPOSE_DATABASE_URL &&
-  !isLocalDatabaseUrl(process.env.PLATFORM_DATABASE_URL)
-) {
-  process.env.DATABASE_URL = process.env.PLATFORM_DATABASE_URL;
+function isPostgresUrl(value) {
+  return typeof value === 'string' && (value.startsWith('postgresql://') || value.startsWith('postgres://'));
+}
+
+function findPlatformDatabaseUrl() {
+  if (isPostgresUrl(process.env.PLATFORM_DATABASE_URL) && !isLocalDatabaseUrl(process.env.PLATFORM_DATABASE_URL)) {
+    return process.env.PLATFORM_DATABASE_URL;
+  }
+
+  if (isPostgresUrl(process.env.DATABASE_URL) && !isLocalDatabaseUrl(process.env.DATABASE_URL)) {
+    return process.env.DATABASE_URL;
+  }
+
+  const discovered = Object.entries(process.env).find(([key, value]) => (
+    key.includes('POSTGRES') &&
+    key.endsWith('_URL') &&
+    isPostgresUrl(value) &&
+    !isLocalDatabaseUrl(value)
+  ));
+
+  return discovered?.[1];
+}
+
+if (!hasEnvValue('COMPOSE_DATABASE_URL')) {
+  const platformDatabaseUrl = findPlatformDatabaseUrl();
+  if (platformDatabaseUrl) {
+    process.env.DATABASE_URL = platformDatabaseUrl;
+  }
 }
 
 if (!hasEnvValue('EMAIL_PROVIDER') && hasEnvValue('SENDGRID_API_KEY')) {

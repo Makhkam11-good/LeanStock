@@ -23,11 +23,33 @@ const app = express();
 // ── Security headers ───────────────────────────────────────────────────────────
 app.use(helmet());
 
+function uniqueOrigins(origins) {
+  return [...new Set(origins.map(origin => origin?.trim()).filter(Boolean))];
+}
+
+function discoverFrontendOrigins() {
+  return Object.entries(process.env)
+    .filter(([key, value]) => value && (key.endsWith('_FRONTEND_URL') || key === 'FRONTEND_URL' || key === 'PUBLIC_FRONTEND_URL'))
+    .map(([, value]) => value.replace(/\/$/, ''));
+}
+
 // ── CORS - No wildcard in production ──────────────────────────────────────────
+const configuredOrigins = CORS_ORIGIN
+  ? CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
+  : [];
+
+const developmentOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+];
+
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production'
-    ? CORS_ORIGIN.split(',').map(s => s.trim())
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'],
+  origin: uniqueOrigins([
+    ...configuredOrigins,
+    ...discoverFrontendOrigins(),
+    ...(process.env.NODE_ENV === 'production' ? [] : developmentOrigins),
+  ]),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Refresh-Token'],
