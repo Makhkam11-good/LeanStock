@@ -1,1 +1,1 @@
-TODO: Replace with the deployed frontend URL before submission.
+https://makhkam11-leanstock-frontend.onrender.com
