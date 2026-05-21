@@ -66,8 +66,12 @@ function validateEnv() {
   }
 
   // Validate DATABASE_URL format
-  if (process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('postgresql://')) {
-    errors.push('DATABASE_URL must be a valid PostgreSQL connection string (postgresql://...)');
+  if (
+    process.env.DATABASE_URL &&
+    !process.env.DATABASE_URL.startsWith('postgresql://') &&
+    !process.env.DATABASE_URL.startsWith('postgres://')
+  ) {
+    errors.push('DATABASE_URL must be a valid PostgreSQL connection string (postgresql://... or postgres://...)');
   }
 
   if (process.env.NODE_ENV === 'production') {
