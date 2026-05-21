@@ -2,6 +2,7 @@
 
 require('./config/env');
 
+const http = require('http');
 const { sendEmailNow } = require('./services/emailService');
 const { applyDeadStockDecay } = require('./services/decayService');
 const { releaseExpiredReservations } = require('./services/inventoryService');
@@ -20,6 +21,29 @@ const {
 const logger = require('./utils/logger');
 
 let shuttingDown = false;
+let healthServer;
+
+function startHealthServer() {
+  if (process.env.WORKER_HEALTH_ENABLED === 'false' || healthServer) {
+    return;
+  }
+
+  const port = parseInt(process.env.PORT || process.env.APP_PORT || process.env.WORKER_HEALTH_PORT || '3000', 10);
+  healthServer = http.createServer((req, res) => {
+    if (req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', service: 'worker' }));
+      return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'not_found' }));
+  });
+
+  healthServer.listen(port, '0.0.0.0', () => {
+    logger.info(`[Worker] Health check listening on port ${port}`);
+  });
+}
 
 async function processJob(job) {
   if (job.type === 'email.send') {
@@ -53,14 +77,30 @@ async function poll(queueName) {
 
 async function startWorker() {
   logger.info('[Worker] Starting LeanStock worker');
+  startHealthServer();
+
   while (!shuttingDown) {
     await Promise.all([poll(QUEUE_EMAIL_NAME), poll(QUEUE_DECAY_NAME)]);
   }
 }
 
+function closeHealthServer() {
+  if (!healthServer) {
+    return Promise.resolve();
+  }
+
+  return new Promise(resolve => {
+    healthServer.close(() => {
+      healthServer = undefined;
+      resolve();
+    });
+  });
+}
+
 async function shutdown(signal) {
   logger.info(`[Worker] Received ${signal}; shutting down`);
   shuttingDown = true;
+  await closeHealthServer();
   await closeQueueConnection();
   await disconnectPrisma();
   process.exit(0);

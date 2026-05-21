@@ -23,19 +23,34 @@ function loadEnvFile(filePath) {
 
 loadEnvFile(path.join(__dirname, '..', '..', '.env'));
 
+function hasEnvValue(key) {
+  return process.env[key] !== undefined && process.env[key] !== '';
+}
+
 function aliasEnv(primary, fallback) {
-  if (process.env[primary] === undefined && process.env[fallback] !== undefined) {
+  if (!hasEnvValue(primary) && hasEnvValue(fallback)) {
     process.env[primary] = process.env[fallback];
   }
 }
 
 aliasEnv('NODE_ENV', 'ENVIRONMENT');
+aliasEnv('APP_PORT', 'PORT');
 aliasEnv('APP_PORT', 'BACKEND_PORT');
 aliasEnv('JWT_SECRET', 'JWT_SECRET_KEY');
 aliasEnv('JWT_REFRESH_SECRET', 'JWT_REFRESH_SECRET_KEY');
 aliasEnv('SENDGRID_API_KEY', 'EMAIL_API_KEY');
 aliasEnv('EMAIL_FROM', 'EMAIL_FROM_ADDRESS');
 aliasEnv('CORS_ORIGIN', 'CORS_ORIGINS');
+aliasEnv('APP_BASE_URL', 'PUBLIC_API_URL');
+aliasEnv('APP_BASE_URL', 'API_URL');
+aliasEnv('APP_BASE_URL', 'BACKEND_URL');
+
+if (!hasEnvValue('APP_BASE_URL')) {
+  const discoveredApiUrlKey = Object.keys(process.env).find(key => key.endsWith('_API_URL') && hasEnvValue(key));
+  if (discoveredApiUrlKey) {
+    process.env.APP_BASE_URL = process.env[discoveredApiUrlKey];
+  }
+}
 
 function isLocalDatabaseUrl(url) {
   return /@(localhost|127\.0\.0\.1)(:|\/)/.test(url);
@@ -49,7 +64,7 @@ if (
   process.env.DATABASE_URL = process.env.PLATFORM_DATABASE_URL;
 }
 
-if (!process.env.EMAIL_PROVIDER && process.env.SENDGRID_API_KEY) {
+if (!hasEnvValue('EMAIL_PROVIDER') && hasEnvValue('SENDGRID_API_KEY')) {
   process.env.EMAIL_PROVIDER = 'sendgrid';
 }
 

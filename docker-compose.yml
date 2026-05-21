@@ -8,18 +8,26 @@ services:
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
+      SERVICE_ROLE: api
       NODE_ENV: ${ENVIRONMENT:-development}
-      APP_PORT: ${PORT:-${BACKEND_PORT:-3000}}
+      APP_PORT: ${APP_PORT:-}
+      BACKEND_PORT: ${BACKEND_PORT:-3000}
+      PORT: ${PORT:-}
       APP_HOST: 0.0.0.0
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://leanstock:leanstock_pass@postgres:5432/leanstock}
       COMPOSE_DATABASE_URL: ${COMPOSE_DATABASE_URL:-}
       PLATFORM_DATABASE_URL: ${DATABASE_URL:-}
-      JWT_SECRET: ${JWT_SECRET:-${JWT_SECRET_KEY:-dev-jwt-secret-min-32-chars-change-in-production-please}}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-${JWT_REFRESH_SECRET_KEY:-dev-refresh-secret-min-32-chars-change-in-production-please}}
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-jwt-secret-min-32-chars-change-in-production-please}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-}
+      JWT_REFRESH_SECRET_KEY: ${JWT_REFRESH_SECRET_KEY:-dev-refresh-secret-min-32-chars-change-in-production-please}
       JWT_ACCESS_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 7d
-      CORS_ORIGIN: ${CORS_ORIGIN:-${CORS_ORIGINS:-http://localhost:3001}}
-      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}
+      APP_BASE_URL: ${APP_BASE_URL:-}
+      API_URL: ${API_URL:-}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-}
       RATE_LIMIT_AUTH_MAX: 100
       RATE_LIMIT_AUTH_WINDOW_MS: 60000
       BCRYPT_ROUNDS: 10
@@ -35,8 +43,10 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       REDIS_REQUIRED: true
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
-      EMAIL_FROM: ${EMAIL_FROM:-${EMAIL_FROM_ADDRESS:-no-reply@leanstock.local}}
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-${EMAIL_API_KEY:-}}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,19 +63,33 @@ services:
       dockerfile: Dockerfile
     container_name: leanstock-worker
     restart: unless-stopped
-    command: npm run worker
+    command: node src/startService.js
     environment:
+      SERVICE_ROLE: worker
       NODE_ENV: ${ENVIRONMENT:-development}
+      APP_PORT: ${APP_PORT:-}
+      BACKEND_PORT: ${BACKEND_PORT:-3000}
+      PORT: ${PORT:-}
+      APP_HOST: 0.0.0.0
+      APP_BASE_URL: ${APP_BASE_URL:-}
+      API_URL: ${API_URL:-}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://leanstock:leanstock_pass@postgres:5432/leanstock}
       COMPOSE_DATABASE_URL: ${COMPOSE_DATABASE_URL:-}
       PLATFORM_DATABASE_URL: ${DATABASE_URL:-}
-      JWT_SECRET: ${JWT_SECRET:-${JWT_SECRET_KEY:-dev-jwt-secret-min-32-chars-change-in-production-please}}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-${JWT_REFRESH_SECRET_KEY:-dev-refresh-secret-min-32-chars-change-in-production-please}}
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-jwt-secret-min-32-chars-change-in-production-please}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-}
+      JWT_REFRESH_SECRET_KEY: ${JWT_REFRESH_SECRET_KEY:-dev-refresh-secret-min-32-chars-change-in-production-please}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       REDIS_REQUIRED: true
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
-      EMAIL_FROM: ${EMAIL_FROM:-${EMAIL_FROM_ADDRESS:-no-reply@leanstock.local}}
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-${EMAIL_API_KEY:-}}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
       SYSTEM_USER_ID: system
     depends_on:
       postgres:
