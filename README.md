@@ -211,7 +211,8 @@ See `.env.example` for all variables. Critical ones that **must** be set:
 - `JWT_REFRESH_SECRET` — Refresh token signing key (min 32 chars)
 - `NODE_ENV` — development | test | production
 - `REDIS_URL` - Redis connection for background jobs
-- `APP_BASE_URL` - Public API base URL used in email links
+- `APP_BASE_URL` - Public API base URL used for API callbacks and production validation
+- `FRONTEND_URL` - Public frontend URL used in verification and password reset email links
 - `EMAIL_FROM` / `SENDGRID_API_KEY` - real email delivery configuration
 - Rubric aliases are also supported: `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET_KEY`, `EMAIL_API_KEY`, `EMAIL_FROM_ADDRESS`, `BACKEND_PORT`, `FRONTEND_PORT`, `ENVIRONMENT`, and `CORS_ORIGINS`
 

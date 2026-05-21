@@ -14,6 +14,7 @@ const {
 const { enqueueEmail } = require('./emailService');
 const {
   APP_BASE_URL,
+  FRONTEND_URL,
   EMAIL_VERIFICATION_TTL_MINUTES,
   PASSWORD_RESET_TTL_MINUTES,
 } = require('../config/env');
@@ -117,6 +118,15 @@ function assertTenantCanLogin(user) {
   }
 }
 
+function publicUrl(pathname, token) {
+  const baseUrl = FRONTEND_URL || APP_BASE_URL;
+  const url = new URL(pathname, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
+  if (token) {
+    url.searchParams.set('token', token);
+  }
+  return url.toString();
+}
+
 async function createAuthToken(userId, type, ttlMinutes) {
   const token = createOpaqueToken();
   const tokenHash = hashToken(token);
@@ -164,7 +174,7 @@ async function consumeAuthToken(token, type) {
 
 async function queueVerificationEmail(user) {
   const token = await createAuthToken(user.id, 'EMAIL_VERIFICATION', EMAIL_VERIFICATION_TTL_MINUTES);
-  const verifyUrl = `${APP_BASE_URL}/api/v1/auth/verify-email?token=${token}`;
+  const verifyUrl = publicUrl('/verify-email', token);
 
   await enqueueEmail({
     to: user.email,
@@ -179,7 +189,7 @@ async function queueVerificationEmail(user) {
 
 async function queuePasswordResetEmail(user) {
   const token = await createAuthToken(user.id, 'PASSWORD_RESET', PASSWORD_RESET_TTL_MINUTES);
-  const resetUrl = `${APP_BASE_URL}/reset-password?token=${token}`;
+  const resetUrl = publicUrl('/reset-password', token);
 
   await enqueueEmail({
     to: user.email,

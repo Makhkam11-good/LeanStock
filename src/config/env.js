@@ -186,6 +186,7 @@ module.exports = {
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
 
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3001',
+  FRONTEND_URL: process.env.FRONTEND_URL || process.env.PUBLIC_FRONTEND_URL || '',
   APP_BASE_URL: process.env.APP_BASE_URL || `http://localhost:${process.env.APP_PORT || 3000}`,
 
   RATE_LIMIT_AUTH_MAX: parseInt(process.env.RATE_LIMIT_AUTH_MAX || '5', 10),
