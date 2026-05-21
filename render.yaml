@@ -22,6 +22,8 @@ services:
     envVars:
       - key: SERVICE_ROLE
         value: api
+      - key: SEED_ON_START
+        value: "true"
       - key: NODE_ENV
         value: production
       - key: ENVIRONMENT

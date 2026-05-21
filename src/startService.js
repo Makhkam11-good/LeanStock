@@ -26,6 +26,10 @@ async function start() {
     await run('npx', ['prisma', 'migrate', 'deploy']);
   }
 
+  if (process.env.SEED_ON_START === 'true') {
+    await run('node', ['prisma/seed.js']);
+  }
+
   const role = (process.env.SERVICE_ROLE || 'api').toLowerCase();
   if (role === 'worker') {
     const { startWorker } = require('./worker');
