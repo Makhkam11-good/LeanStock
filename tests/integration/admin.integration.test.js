@@ -53,7 +53,7 @@ beforeAll(async () => {
       password_hash,
       first_name: 'Manager',
       last_name: 'Tester',
-      role: 'MANAGER',
+      role: 'COMPANY_ADMIN',
       is_active: true,
       is_email_verified: true,
     },

@@ -24,6 +24,10 @@ export function ReportsPage() {
   const products = useQuery({ queryKey: ["products", "report-options"], queryFn: () => productApi.list({ limit: 100 }) });
   const locations = useQuery({ queryKey: ["locations", "report-options"], queryFn: () => locationApi.list({ limit: 100 }) });
   const lowStock = useQuery({ queryKey: ["reports", "low-stock"], queryFn: () => reportApi.lowStock() });
+  const forecast = useQuery({
+    queryKey: ["reports", "reorder-forecast", productId, locationId],
+    queryFn: () => reportApi.reorderForecast({ product_id: productId || undefined, location_id: locationId || undefined }),
+  });
   const deadStock = useQuery({
     queryKey: ["reports", "dead-stock", thresholdDays],
     queryFn: () => reportApi.deadStock(thresholdDays),
@@ -49,8 +53,8 @@ export function ReportsPage() {
 
   return (
     <PageShell title="Reports and analytics" description="Analytics are powered by backend report endpoints for low stock, dead stock, decay history, and optional job status.">
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
-        <div className="space-y-6">
+      <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 space-y-6">
           <Card>
             <SectionHeader title="Low stock" description="Items whose quantity on hand is at or below reorder point." />
             <DataTable
@@ -97,6 +101,26 @@ export function ReportsPage() {
           </Card>
 
           <Card>
+            <SectionHeader title="Reorder forecast" description="Moving-average reorder suggestions from `/reports/reorder-forecast`." />
+            <DataTable
+              data={forecast.data?.suggestions}
+              isLoading={forecast.isLoading}
+              error={forecast.error}
+              getKey={(item) => item.inventory_id}
+              emptyTitle="No reorder suggestions"
+              emptyDescription="No inventory rows matched the current filters."
+              columns={[
+                { header: "SKU", cell: (item) => item.product.sku },
+                { header: "Location", cell: (item) => item.location.name },
+                { header: "Sold", cell: (item) => item.sold_quantity },
+                { header: "Daily demand", cell: (item) => item.daily_demand },
+                { header: "Available", cell: (item) => item.available_quantity },
+                { header: "Recommended", cell: (item) => <span className="font-semibold text-slate-950">{item.recommended_order_quantity}</span> },
+              ]}
+            />
+          </Card>
+
+          <Card>
             <SectionHeader title="Decay history" description="Audit trail from `/reports/decay-history`." />
             <div className="mb-4 grid gap-3 md:grid-cols-2">
               <Field label="Product">
@@ -135,9 +159,9 @@ export function ReportsPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <Card>
-            <SectionHeader title="Manual decay" description="MANAGER and SYSTEM_ADMIN can enqueue or synchronously run decay." />
+            <SectionHeader title="Manual decay" description="Company admins, managers, and platform admins can enqueue or synchronously run decay." />
             {trigger.error ? <ErrorState error={trigger.error} /> : null}
             {trigger.data ? (
               <div className="mb-4 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">

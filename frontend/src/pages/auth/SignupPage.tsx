@@ -6,7 +6,7 @@ import { z } from "zod";
 import { authApi } from "../../api/leanstock";
 import { ApiError } from "../../api/client";
 import { Button } from "../../components/ui/Button";
-import { Field, Input } from "../../components/ui/Fields";
+import { Field, Input, PasswordInput } from "../../components/ui/Fields";
 import { AuthShell } from "./AuthShell";
 
 const schema = z.object({
@@ -95,7 +95,7 @@ export function SignupPage() {
             <Input autoComplete="email" {...form.register("email")} />
           </Field>
           <Field label="Password" error={form.formState.errors.password?.message}>
-            <Input type="password" autoComplete="new-password" {...form.register("password")} />
+            <PasswordInput autoComplete="new-password" {...form.register("password")} />
           </Field>
           <Field label="Phone" error={form.formState.errors.phone?.message}>
             <Input {...form.register("phone")} placeholder="+77001234567" />

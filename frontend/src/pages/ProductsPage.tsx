@@ -154,13 +154,13 @@ export function ProductsPage() {
   return (
     <PageShell
       title="Products"
-      description="Catalog CRUD for tenant-scoped products. Create/update/discontinue endpoints require MANAGER or SYSTEM_ADMIN."
+      description="Catalog CRUD for tenant-scoped products. Create/update/discontinue endpoints require Company admin, Manager, or SYSTEM_ADMIN."
       actions={canWrite ? <Button onClick={() => setSelected(null)}><Plus className="h-4 w-4" /> New product</Button> : null}
     >
-      <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
+      <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
         <Card>
           <SectionHeader title="Product catalog" description="Cursor-paginated list from `/products`." />
-          <div className="grid gap-3 md:grid-cols-[1fr_180px_180px_auto]">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_180px_180px_auto]">
             <Field label="Search">
               <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="SKU or name" />
             </Field>
@@ -202,14 +202,15 @@ export function ProductsPage() {
                 { header: "Status", cell: (product) => <Badge tone={product.is_discontinued ? "amber" : "green"}>{product.is_discontinued ? "Discontinued" : "Active"}</Badge> },
                 {
                   header: "Actions",
+                  width: "8rem",
                   cell: (product) => canWrite ? (
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="secondary" className="px-3" onClick={() => setSelected(product)} title="Edit product">
+                    <div className="flex flex-nowrap items-center justify-center gap-2">
+                      <Button variant="secondary" className="h-10 w-10 shrink-0 !p-0" onClick={() => setSelected(product)} title="Edit product">
                         <Edit3 className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="danger"
-                        className="px-3"
+                        className="h-10 w-10 shrink-0 !p-0"
                         onClick={() => discontinueMutation.mutate(product.id)}
                         disabled={product.is_discontinued || discontinueMutation.isPending}
                         title="Discontinue product"

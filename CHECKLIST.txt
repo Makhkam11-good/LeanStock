@@ -1,0 +1,14 @@
+[ ] Application is LIVE on dashboard.deployrocks.com (or any other free cloud platform) with working public URL
+[x] docker compose up boots entire stack (backend + frontend + postgres + redis)
+[x] pytest / jest runs and passes with full test suite
+[x] Swagger UI / API docs is accessible locally and covers implemented endpoints
+[x] All auth endpoints work locally: register, login, logout, refresh, RBAC protected routes
+[ ] Email verification sends REAL email on deployed signup using 3rd party service
+[x] Password reset queues email with working reset link
+[x] At least 3 business event emails are implemented and queued via background worker
+[x] Frontend demo consumes real backend API and demonstrates major workflows
+[x] All core LeanStock business logic endpoints are implemented and testable
+[x] Background workers are configured and process Redis jobs
+[x] No raw SQL queries exist in application code
+[ ] Postman collection with ALL endpoints loaded in separate tabs ready for defense
+[x] I am the sole author of the architectural decisions in this code

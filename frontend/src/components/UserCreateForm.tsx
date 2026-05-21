@@ -7,7 +7,7 @@ import { ApiError } from "../api/client";
 import { authApi } from "../api/leanstock";
 import type { User, UserRole } from "../types/api";
 import { Button } from "./ui/Button";
-import { Field, Input, Select } from "./ui/Fields";
+import { Field, Input, PasswordInput, Select } from "./ui/Fields";
 
 const schema = z.object({
   first_name: z.string().min(1, "First name is required").max(100),
@@ -46,7 +46,7 @@ export function UserCreateForm({
         ...values,
         phone: values.phone || undefined,
         tenant_id: tenantId ?? undefined,
-        role: values.role as Exclude<UserRole, "SYSTEM_ADMIN">,
+        role: values.role as Exclude<UserRole, "SYSTEM_ADMIN" | "COMPANY_ADMIN">,
       }),
     onSuccess: (user) => {
       form.reset();
@@ -73,7 +73,7 @@ export function UserCreateForm({
         <Input autoComplete="email" {...form.register("email")} />
       </Field>
       <Field label="Temporary password" error={form.formState.errors.password?.message}>
-        <Input type="password" autoComplete="new-password" {...form.register("password")} />
+        <PasswordInput autoComplete="new-password" {...form.register("password")} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Phone" error={form.formState.errors.phone?.message}>
@@ -82,7 +82,7 @@ export function UserCreateForm({
         <Field label="Role" error={form.formState.errors.role?.message}>
           <Select {...form.register("role")}>
             <option value="WAREHOUSE_OPERATOR">Warehouse operator</option>
-            <option value="MANAGER">Company admin</option>
+            <option value="MANAGER">Manager</option>
             <option value="AUDITOR">Auditor</option>
           </Select>
         </Field>

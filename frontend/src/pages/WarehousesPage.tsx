@@ -220,8 +220,8 @@ export function WarehousesPage() {
 
   return (
     <PageShell title="Warehouses" description="Warehouse and location CRUD using `/warehouses` and `/locations`. Deleting a warehouse is a backend soft hide.">
-      <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
-        <div className="space-y-6">
+      <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="min-w-0 space-y-6">
           <Card>
             <SectionHeader title="Warehouses" description="Tenant-scoped warehouses, hidden records excluded by backend." />
             {(closeWarehouse.error || hideWarehouse.error) ? <ErrorState error={closeWarehouse.error ?? hideWarehouse.error} /> : null}
@@ -242,15 +242,16 @@ export function WarehousesPage() {
                 { header: "Locations", cell: (warehouse) => warehouse._count?.locations ?? 0 },
                 {
                   header: "Actions",
+                  width: "11rem",
                   cell: (warehouse) => canWrite ? (
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="secondary" className="px-3" title="Edit warehouse" onClick={() => setSelectedWarehouse(warehouse)}>
+                    <div className="flex flex-nowrap items-center justify-center gap-2">
+                      <Button variant="secondary" className="h-10 w-10 shrink-0 !p-0" title="Edit warehouse" onClick={() => setSelectedWarehouse(warehouse)}>
                         <Edit3 className="h-4 w-4" />
                       </Button>
-                      <Button variant="secondary" className="px-3" title="Close warehouse" disabled={warehouse.status === "CLOSED" || closeWarehouse.isPending} onClick={() => closeWarehouse.mutate(warehouse.id)}>
+                      <Button variant="secondary" className="h-10 w-10 shrink-0 !p-0" title="Close warehouse" disabled={warehouse.status === "CLOSED" || closeWarehouse.isPending} onClick={() => closeWarehouse.mutate(warehouse.id)}>
                         <PowerOff className="h-4 w-4" />
                       </Button>
-                      <Button variant="danger" className="px-3" title="Hide warehouse" disabled={hideWarehouse.isPending} onClick={() => hideWarehouse.mutate(warehouse.id)}>
+                      <Button variant="danger" className="h-10 w-10 shrink-0 !p-0" title="Hide warehouse" disabled={hideWarehouse.isPending} onClick={() => hideWarehouse.mutate(warehouse.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -290,12 +291,13 @@ export function WarehousesPage() {
                 { header: "Address", cell: (location) => location.address ?? "-" },
                 {
                   header: "Actions",
+                  width: "8rem",
                   cell: (location) => canWrite ? (
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="secondary" className="px-3" title="Edit location" onClick={() => setSelectedLocation(location)}>
+                    <div className="flex flex-nowrap items-center justify-center gap-2">
+                      <Button variant="secondary" className="h-10 w-10 shrink-0 !p-0" title="Edit location" onClick={() => setSelectedLocation(location)}>
                         <MapPin className="h-4 w-4" />
                       </Button>
-                      <Button variant="danger" className="px-3" title="Delete location" disabled={deleteLocation.isPending} onClick={() => deleteLocation.mutate(location.id)}>
+                      <Button variant="danger" className="h-10 w-10 shrink-0 !p-0" title="Delete location" disabled={deleteLocation.isPending} onClick={() => deleteLocation.mutate(location.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -306,7 +308,7 @@ export function WarehousesPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <Card>
             <SectionHeader
               title={canWrite ? (selectedWarehouse ? "Edit warehouse" : "Create warehouse") : "Read-only access"}

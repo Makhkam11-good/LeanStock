@@ -21,6 +21,7 @@ const documentedRoutes = {
   '/auth/reset-password': ['post'],
   '/auth/change-password': ['post'],
   '/auth/me': ['get'],
+  '/users': ['get'],
   '/admin/tenants': ['get'],
   '/admin/tenants/{id}': ['get'],
   '/admin/tenants/{id}/activate': ['patch'],
@@ -28,6 +29,14 @@ const documentedRoutes = {
   '/products': ['get', 'post'],
   '/products/{id}': ['get', 'patch'],
   '/products/{id}/discontinue': ['post'],
+  '/suppliers': ['get', 'post'],
+  '/suppliers/{id}': ['get', 'patch', 'delete'],
+  '/purchase-orders': ['get', 'post'],
+  '/purchase-orders/{id}': ['get', 'patch'],
+  '/purchase-orders/{id}/submit': ['post'],
+  '/purchase-orders/{id}/approve': ['post'],
+  '/purchase-orders/{id}/receive': ['post'],
+  '/purchase-orders/{id}/cancel': ['post'],
   '/inventory': ['get'],
   '/inventory/{id}': ['get'],
   '/inventory/transfer': ['post'],
@@ -35,6 +44,8 @@ const documentedRoutes = {
   '/inventory/sell': ['post'],
   '/inventory/{id}/reserve': ['post'],
   '/inventory/{id}/release-reservation': ['post'],
+  '/stock-movements': ['get'],
+  '/stock-movements/{id}': ['get'],
   '/warehouses': ['get', 'post'],
   '/warehouses/{id}': ['get', 'patch', 'delete'],
   '/warehouses/{id}/close': ['post'],
@@ -43,6 +54,7 @@ const documentedRoutes = {
   '/reports/dead-stock': ['get'],
   '/reports/decay-history': ['get'],
   '/reports/low-stock': ['get'],
+  '/reports/reorder-forecast': ['get'],
   '/reports/trigger-decay': ['post'],
   '/jobs/{id}': ['get'],
 };
@@ -109,16 +121,17 @@ describe('OpenAPI Swagger documentation', () => {
     expect(schema.properties.movement_type.enum).toEqual(['INCOMING']);
   });
 
-  test('Swagger documents tenant-manager user registration', () => {
+  test('Swagger documents company-admin user registration', () => {
     const operation = spec.paths['/auth/register'].post;
     const loginSchema = spec.components.schemas.LoginRequest;
     const registerSchema = spec.components.schemas.RegisterRequest;
 
     expect(operation.security).toEqual([{ bearerAuth: [] }]);
     expect(operation.summary).toBe('Create a user and assign a role');
-    expect(operation.description).toContain('Tenant MANAGER users can add workers');
+    expect(operation.description).toContain('COMPANY_ADMIN users can add workers');
     expect(loginSchema.properties.email.example).toBe('admin@leanstock.com');
     expect(loginSchema.properties.password.example).toBe('Admin123');
+    expect(registerSchema.properties.role.enum).toEqual(['MANAGER', 'WAREHOUSE_OPERATOR', 'AUDITOR']);
     expect(registerSchema.properties.role.example).toBe('WAREHOUSE_OPERATOR');
   });
 });

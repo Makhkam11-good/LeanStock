@@ -1,4 +1,4 @@
-export type UserRole = "SYSTEM_ADMIN" | "MANAGER" | "WAREHOUSE_OPERATOR" | "AUDITOR";
+export type UserRole = "SYSTEM_ADMIN" | "COMPANY_ADMIN" | "MANAGER" | "WAREHOUSE_OPERATOR" | "AUDITOR";
 
 export type WarehouseStatus = "ACTIVE" | "CLOSED" | "MAINTENANCE";
 
@@ -157,6 +157,84 @@ export interface InventoryLot {
   last_decay_applied_at?: string | null;
 }
 
+export interface InventoryReservation {
+  id: string;
+  inventory_id: string;
+  user_id: string;
+  quantity: number;
+  status: "ACTIVE" | "RELEASED" | "EXPIRED";
+  expires_at: string;
+  released_at?: string | null;
+  reason?: string | null;
+}
+
+export interface SupplierProduct {
+  id: string;
+  supplier_id: string;
+  product_id: string;
+  supplier_sku?: string | null;
+  unit_cost: number | string;
+  min_order_quantity: number;
+  product?: Pick<Product, "id" | "sku" | "name">;
+}
+
+export interface Supplier {
+  id: string;
+  tenant_id: string;
+  name: string;
+  contact_email?: string | null;
+  phone?: string | null;
+  lead_time_days: number;
+  is_active: boolean;
+  supplier_products?: SupplierProduct[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PurchaseOrderLine {
+  id: string;
+  purchase_order_id: string;
+  product_id: string;
+  location_id: string;
+  quantity_ordered: number;
+  quantity_received: number;
+  unit_cost: number | string;
+  product?: Pick<Product, "id" | "sku" | "name">;
+  location?: Pick<Location, "id" | "name"> & { warehouse?: Pick<Warehouse, "id" | "name"> };
+}
+
+export interface PurchaseOrder {
+  id: string;
+  tenant_id: string;
+  supplier_id: string;
+  created_by_id: string;
+  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "RECEIVED" | "CLOSED" | "CANCELLED";
+  expected_at?: string | null;
+  submitted_at?: string | null;
+  approved_at?: string | null;
+  received_at?: string | null;
+  cancelled_at?: string | null;
+  notes?: string | null;
+  supplier?: Supplier;
+  lines?: PurchaseOrderLine[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ReorderForecast {
+  inventory_id: string;
+  product: Pick<Product, "id" | "sku" | "name" | "category">;
+  location: Pick<Location, "id" | "name"> & { warehouse?: Pick<Warehouse, "name"> };
+  window_days: number;
+  sold_quantity: number;
+  daily_demand: number;
+  lead_time_days: number;
+  available_quantity: number;
+  reorder_point: number;
+  expected_demand_during_lead_time: number;
+  recommended_order_quantity: number;
+}
+
 export interface StockMovement {
   id: string;
   product_id: string;
@@ -170,6 +248,11 @@ export interface StockMovement {
   created_at?: string;
   approved_at?: string | null;
   completed_at?: string | null;
+  updated_at?: string;
+  product?: Pick<Product, "id" | "sku" | "name" | "category">;
+  user?: Pick<User, "id" | "email" | "first_name" | "last_name" | "role">;
+  from_location?: Pick<Location, "id" | "name"> & { warehouse?: Pick<Warehouse, "id" | "name" | "tenant_id"> };
+  to_location?: Pick<Location, "id" | "name"> & { warehouse?: Pick<Warehouse, "id" | "name" | "tenant_id"> };
 }
 
 export interface DeadStockLot {

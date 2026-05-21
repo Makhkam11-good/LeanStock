@@ -20,11 +20,18 @@ const rows: Array<{
     special: "Only role allowed on `/admin/tenants`",
   },
   {
-    role: "MANAGER",
+    role: "COMPANY_ADMIN",
     scope: "Own company",
     read: "Products, warehouses, locations, inventory, reports",
     write: "Products, warehouses, locations, users, stock operations, decay trigger",
     special: "Tenant-scoped by backend middleware and services",
+  },
+  {
+    role: "MANAGER",
+    scope: "Own company",
+    read: "Products, warehouses, locations, inventory, reports",
+    write: "Products, warehouses, locations, stock operations, decay trigger",
+    special: "Cannot create company users or manage tenants",
   },
   {
     role: "WAREHOUSE_OPERATOR",
@@ -53,7 +60,7 @@ export function RolesPage() {
           emptyTitle="No roles"
           emptyDescription="RBAC enum is empty."
           columns={[
-            { header: "Role", cell: (row) => <Badge tone={row.role === "SYSTEM_ADMIN" ? "violet" : row.role === "MANAGER" ? "blue" : row.role === "WAREHOUSE_OPERATOR" ? "green" : "neutral"}>{roleLabels[row.role]}</Badge> },
+            { header: "Role", cell: (row) => <Badge tone={row.role === "SYSTEM_ADMIN" ? "violet" : row.role === "COMPANY_ADMIN" ? "blue" : row.role === "MANAGER" ? "amber" : row.role === "WAREHOUSE_OPERATOR" ? "green" : "neutral"}>{roleLabels[row.role]}</Badge> },
             { header: "Scope", cell: (row) => row.scope },
             { header: "Read", cell: (row) => row.read },
             { header: "Write", cell: (row) => row.write },

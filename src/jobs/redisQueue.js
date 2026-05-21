@@ -300,6 +300,13 @@ async function getJob(jobId) {
   );
 }
 
+async function redisCommand(...args) {
+  return withRedis(
+    redis => redis.command(...args),
+    () => null
+  );
+}
+
 async function closeQueueConnection() {
   if (redisConnection) redisConnection.close();
 }
@@ -310,5 +317,6 @@ module.exports = {
   markJobCompleted,
   markJobFailed,
   getJob,
+  redisCommand,
   closeQueueConnection,
 };

@@ -197,7 +197,7 @@ async function register({ email, password, first_name, last_name, phone, role, t
 
   const assignedRole = role || 'WAREHOUSE_OPERATOR';
   if (!STAFF_ROLES.has(assignedRole)) {
-    throw new AuthorizationError('SYSTEM_ADMIN cannot be created through registration');
+    throw new AuthorizationError('Company admins and system admins cannot be created through staff registration');
   }
 
   let assignedTenantId = null;
@@ -269,7 +269,7 @@ async function signup({ email, password, first_name, last_name, phone, company_n
         first_name,
         last_name,
         phone,
-        role: 'MANAGER',
+        role: 'COMPANY_ADMIN',
         is_active: true,
         is_email_verified: false,
       },
@@ -468,7 +468,7 @@ async function verifyEmail(token) {
       select: USER_SELECT,
     });
 
-    if (verified.role === 'MANAGER' && verified.tenant_id) {
+    if (verified.role === 'COMPANY_ADMIN' && verified.tenant_id) {
       await tx.tenant.update({
         where: { id: verified.tenant_id },
         data: { is_active: true },

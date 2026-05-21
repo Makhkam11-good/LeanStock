@@ -82,7 +82,7 @@ async function queueDecaySummaryEmail(result, tenantId) {
 
   const managers = await prisma.user.findMany({
     where: {
-      role: tenantId ? 'MANAGER' : { in: ['MANAGER', 'SYSTEM_ADMIN'] },
+      role: tenantId ? { in: ['COMPANY_ADMIN', 'MANAGER'] } : { in: ['COMPANY_ADMIN', 'MANAGER', 'SYSTEM_ADMIN'] },
       ...(tenantId ? { tenant_id: tenantId } : {}),
       is_active: true,
       is_email_verified: true,

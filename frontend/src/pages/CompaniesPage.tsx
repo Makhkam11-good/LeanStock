@@ -42,7 +42,7 @@ export function CompaniesPage() {
   const selectedTenant = tenantDetail.data;
   const filters = useMemo(
     () => (
-      <div className="grid gap-3 md:grid-cols-[1fr_180px_auto]">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_180px_auto]">
         <Field label="Search">
           <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or slug" />
         </Field>
@@ -90,14 +90,15 @@ export function CompaniesPage() {
               { header: "Created", cell: (tenant) => formatDate(tenant.created_at) },
               {
                 header: "Actions",
+                width: "8rem",
                 cell: (tenant) => (
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" className="px-3" title="View tenant" onClick={() => setSelectedTenantId(tenant.id)}>
+                  <div className="flex flex-nowrap items-center justify-center gap-2">
+                    <Button variant="secondary" className="h-10 w-10 shrink-0 !p-0" title="View tenant" onClick={() => setSelectedTenantId(tenant.id)}>
                       <Eye className="h-4 w-4" />
                     </Button>
                     <Button
                       variant={tenant.is_active ? "danger" : "primary"}
-                      className="px-3"
+                      className="h-10 w-10 shrink-0 !p-0"
                       title={tenant.is_active ? "Deactivate" : "Activate"}
                       disabled={activation.isPending}
                       onClick={() => activation.mutate({ id: tenant.id, active: !tenant.is_active })}
@@ -113,7 +114,7 @@ export function CompaniesPage() {
       </Card>
 
       {selectedTenantId ? (
-        <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
+        <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
           <Card>
             <SectionHeader title="Tenant detail" description="Backend exposes the first 20 users on tenant detail." />
             {tenantDetail.isLoading ? <LoadingState /> : null}

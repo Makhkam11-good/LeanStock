@@ -16,10 +16,16 @@ servers:
 tags:
   - name: Auth
     description: Authentication, token refresh, and user profile endpoints.
+  - name: Users
+    description: Company and platform user directory endpoints.
   - name: Products
     description: Product catalog operations.
   - name: Inventory
     description: Inventory stock, receiving, reservations, and transfers.
+  - name: Suppliers
+    description: Supplier catalog and product sourcing.
+  - name: Purchase Orders
+    description: Supplier purchase order workflow and receiving.
   - name: Warehouses
     description: Warehouse operations.
   - name: Locations
@@ -219,7 +225,7 @@ components:
           example: Doe
         role:
           type: string
-          enum: [MANAGER, WAREHOUSE_OPERATOR, AUDITOR, SYSTEM_ADMIN]
+          enum: [COMPANY_ADMIN, MANAGER, WAREHOUSE_OPERATOR, AUDITOR, SYSTEM_ADMIN]
           example: SYSTEM_ADMIN
         is_active:
           type: boolean
@@ -295,11 +301,12 @@ components:
         role:
           type: string
           enum: [MANAGER, WAREHOUSE_OPERATOR, AUDITOR]
+          description: Staff role to assign. COMPANY_ADMIN is created with company registration, not staff registration.
           default: WAREHOUSE_OPERATOR
           example: WAREHOUSE_OPERATOR
         tenant_id:
           type: string
-          description: Optional for SYSTEM_ADMIN. Tenant managers always create users inside their own company.
+          description: Optional for SYSTEM_ADMIN. Company admins always create users inside their own company.
           example: clxtenant001
 
     LoginRequest:
@@ -1071,7 +1078,7 @@ paths:
     post:
       tags: [Auth]
       summary: Sign up and queue verification email
-      description: Creates a new company tenant and its first MANAGER account. The manager cannot access protected routes until email verification succeeds.
+      description: Creates a new company tenant and its first COMPANY_ADMIN account. The company admin cannot access protected routes until email verification succeeds.
       requestBody:
         required: true
         content:
@@ -1104,9 +1111,10 @@ paths:
       tags: [Auth]
       summary: Create a user and assign a role
       description: |
-        Creates staff inside a company. Tenant MANAGER users can add workers
-        for their own company; SYSTEM_ADMIN can assist globally and may pass
-        `tenant_id`. Public company signup is handled by `/auth/signup`.
+        Creates staff inside a company. COMPANY_ADMIN users can add workers
+        for their own company. SYSTEM_ADMIN can assist globally and may pass
+        `tenant_id`. COMPANY_ADMIN is not a staff role; create it together
+        with company data through `/auth/signup`.
       security:
         - bearerAuth: []
       requestBody:
@@ -1379,6 +1387,60 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      description: SYSTEM_ADMIN can list users globally and filter by tenant. COMPANY_ADMIN sees users only inside their own company. The current authenticated user is excluded from the list.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/AfterQuery'
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+          description: SYSTEM_ADMIN-only tenant filter.
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Case-insensitive search by email, first name, or last name.
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [COMPANY_ADMIN, MANAGER, WAREHOUSE_OPERATOR, AUDITOR, SYSTEM_ADMIN]
+        - name: is_active
+          in: query
+          schema:
+            type: string
+            enum: ['true', 'false']
+      responses:
+        '200':
+          description: Cursor-paginated user list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /products:
     get:
       tags: [Products]
@@ -1426,7 +1488,7 @@ paths:
     post:
       tags: [Products]
       summary: Create a product
-      description: Requires MANAGER or SYSTEM_ADMIN.
+      description: Requires COMPANY_ADMIN, MANAGER, or SYSTEM_ADMIN.
       security:
         - bearerAuth: []
       requestBody:
@@ -1488,7 +1550,7 @@ paths:
     patch:
       tags: [Products]
       summary: Update product
-      description: Requires MANAGER or SYSTEM_ADMIN.
+      description: Requires COMPANY_ADMIN, MANAGER, or SYSTEM_ADMIN.
       security:
         - bearerAuth: []
       parameters:
@@ -1525,7 +1587,7 @@ paths:
     post:
       tags: [Products]
       summary: Mark product as discontinued
-      description: Requires MANAGER or SYSTEM_ADMIN.
+      description: Requires COMPANY_ADMIN, MANAGER, or SYSTEM_ADMIN.
       security:
         - bearerAuth: []
       parameters:
@@ -1804,6 +1866,85 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /stock-movements:
+    get:
+      tags: [Inventory]
+      summary: List stock movement history
+      description: Cursor-paginated audit trail for receive, transfer, sale, and purchase-order receiving movements.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/AfterQuery'
+        - name: movement_type
+          in: query
+          schema:
+            type: string
+            enum: [INCOMING, OUTGOING, TRANSFER, ADJUSTMENT, WRITE_OFF]
+          example: TRANSFER
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, APPROVED, IN_TRANSIT, COMPLETED, REJECTED]
+          example: COMPLETED
+        - name: product_id
+          in: query
+          schema:
+            type: string
+          example: clxprod001
+        - name: location_id
+          in: query
+          schema:
+            type: string
+          example: clxloc001
+      responses:
+        '200':
+          description: Stock movement page.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/StockMovement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /stock-movements/{id}:
+    get:
+      tags: [Inventory]
+      summary: Get stock movement detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Stock movement detail.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/StockMovement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /warehouses:
     get:
       tags: [Warehouses]
@@ -1838,7 +1979,7 @@ paths:
     post:
       tags: [Warehouses]
       summary: Create warehouse
-      description: Requires MANAGER or SYSTEM_ADMIN.
+      description: Requires COMPANY_ADMIN, MANAGER, or SYSTEM_ADMIN.
       security:
         - bearerAuth: []
       requestBody:
@@ -1907,7 +2048,7 @@ paths:
     patch:
       tags: [Warehouses]
       summary: Update warehouse
-      description: Requires MANAGER or SYSTEM_ADMIN.
+      description: Requires COMPANY_ADMIN, MANAGER, or SYSTEM_ADMIN.
       security:
         - bearerAuth: []
       parameters:
@@ -1941,7 +2082,7 @@ paths:
     delete:
       tags: [Warehouses]
       summary: Hide warehouse
-      description: Soft-deletes a warehouse by marking it hidden and CLOSED. Existing rows and relationships stay in the database. Requires MANAGER or SYSTEM_ADMIN.
+      description: Soft-deletes a warehouse by marking it hidden and CLOSED. Existing rows and relationships stay in the database. Requires COMPANY_ADMIN, MANAGER, or SYSTEM_ADMIN.
       security:
         - bearerAuth: []
       parameters:
@@ -1970,7 +2111,7 @@ paths:
     post:
       tags: [Warehouses]
       summary: Close warehouse
-      description: Sets warehouse status to CLOSED. Requires MANAGER or SYSTEM_ADMIN.
+      description: Sets warehouse status to CLOSED. Requires COMPANY_ADMIN, MANAGER, or SYSTEM_ADMIN.
       security:
         - bearerAuth: []
       parameters:
@@ -2033,7 +2174,7 @@ paths:
     post:
       tags: [Locations]
       summary: Create location
-      description: Requires MANAGER or SYSTEM_ADMIN.
+      description: Requires COMPANY_ADMIN, MANAGER, or SYSTEM_ADMIN.
       security:
         - bearerAuth: []
       requestBody:
@@ -2095,7 +2236,7 @@ paths:
     patch:
       tags: [Locations]
       summary: Update location
-      description: Requires MANAGER or SYSTEM_ADMIN.
+      description: Requires COMPANY_ADMIN, MANAGER, or SYSTEM_ADMIN.
       security:
         - bearerAuth: []
       parameters:
@@ -2129,7 +2270,7 @@ paths:
     delete:
       tags: [Locations]
       summary: Delete location
-      description: Requires MANAGER or SYSTEM_ADMIN. Locations with existing inventory cannot be deleted.
+      description: Requires COMPANY_ADMIN, MANAGER, or SYSTEM_ADMIN. Locations with existing inventory cannot be deleted.
       security:
         - bearerAuth: []
       parameters:
@@ -2145,6 +2286,243 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+
+  /suppliers:
+    get:
+      tags: [Suppliers]
+      summary: List suppliers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/AfterQuery'
+      responses:
+        '200':
+          description: Paginated supplier list.
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Suppliers]
+      summary: Create supplier
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: Northwind Wholesale
+              contact_email: orders@northwind.example
+              lead_time_days: 7
+              products:
+                - product_id: clxproduct001
+                  unit_cost: 42.5
+                  min_order_quantity: 10
+      responses:
+        '201':
+          description: Supplier created.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /suppliers/{id}:
+    get:
+      tags: [Suppliers]
+      summary: Get supplier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Supplier detail.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Suppliers]
+      summary: Update supplier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Supplier updated.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Suppliers]
+      summary: Deactivate supplier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Supplier deactivated.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /purchase-orders:
+    get:
+      tags: [Purchase Orders]
+      summary: List purchase orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/AfterQuery'
+      responses:
+        '200':
+          description: Paginated purchase orders.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Purchase Orders]
+      summary: Create purchase order
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              supplier_id: clxsupplier001
+              expected_at: '2026-05-28T09:00:00.000Z'
+              lines:
+                - product_id: clxproduct001
+                  location_id: clxlocation001
+                  quantity_ordered: 50
+                  unit_cost: 42.5
+      responses:
+        '201':
+          description: Purchase order created.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /purchase-orders/{id}:
+    get:
+      tags: [Purchase Orders]
+      summary: Get purchase order
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Purchase order detail.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Purchase Orders]
+      summary: Update draft purchase order
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Purchase order updated.
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /purchase-orders/{id}/submit:
+    post:
+      tags: [Purchase Orders]
+      summary: Submit purchase order
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Purchase order submitted.
+
+  /purchase-orders/{id}/approve:
+    post:
+      tags: [Purchase Orders]
+      summary: Approve purchase order and queue supplier email
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Purchase order approved.
+
+  /purchase-orders/{id}/receive:
+    post:
+      tags: [Purchase Orders]
+      summary: Receive purchase order stock atomically
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              lines:
+                - line_id: clxpoline001
+                  quantity_received: 10
+                  lot_code: PO-LOT-001
+      responses:
+        '200':
+          description: Stock received into inventory.
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /purchase-orders/{id}/cancel:
+    post:
+      tags: [Purchase Orders]
+      summary: Cancel purchase order
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Purchase order cancelled.
 
   /reports/dead-stock:
     get:
@@ -2250,11 +2628,49 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /reports/reorder-forecast:
+    get:
+      tags: [Reports]
+      summary: Get reorder forecasting suggestions
+      description: Uses moving average demand from completed outgoing stock movements.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: string
+        - name: location_id
+          in: query
+          schema:
+            type: string
+        - name: days
+          in: query
+          schema:
+            type: integer
+            example: 30
+        - name: lead_time_days
+          in: query
+          schema:
+            type: integer
+            example: 7
+      responses:
+        '200':
+          description: Reorder suggestions ordered by recommended quantity.
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /reports/trigger-decay:
     post:
       tags: [Reports]
       summary: Manually trigger dead stock decay
-      description: Requires MANAGER or SYSTEM_ADMIN.
+      description: Requires COMPANY_ADMIN, MANAGER, or SYSTEM_ADMIN.
       security:
         - bearerAuth: []
       responses:

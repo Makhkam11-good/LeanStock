@@ -16,6 +16,9 @@ import type {
   UserRole,
   Warehouse,
   Location,
+  PurchaseOrder,
+  ReorderForecast,
+  Supplier,
 } from "../types/api";
 
 export interface ListParams {
@@ -77,7 +80,7 @@ export const authApi = {
     first_name: string;
     last_name: string;
     phone?: string;
-    role?: Exclude<UserRole, "SYSTEM_ADMIN">;
+    role?: Exclude<UserRole, "SYSTEM_ADMIN" | "COMPANY_ADMIN">;
     tenant_id?: string;
   }) => unwrap(apiRequest<ApiResponse<User>>("/auth/register", { method: "POST", body })),
 };
@@ -88,6 +91,11 @@ export const adminApi = {
   getTenant: (id: string) => unwrap(apiRequest<ApiResponse<TenantDetail>>(`/admin/tenants/${id}`)),
   activateTenant: (id: string) => unwrap(apiRequest<ApiResponse<TenantDetail>>(`/admin/tenants/${id}/activate`, { method: "PATCH" })),
   deactivateTenant: (id: string) => unwrap(apiRequest<ApiResponse<TenantDetail>>(`/admin/tenants/${id}/deactivate`, { method: "PATCH" })),
+};
+
+export const userApi = {
+  list: (params: ListParams & { tenant_id?: string; role?: UserRole; is_active?: "true" | "false" } = {}) =>
+    apiRequest<PaginatedResponse<User>>("/users", { params }),
 };
 
 export const productApi = {
@@ -160,13 +168,64 @@ export const inventoryApi = {
       method: "POST",
       body,
     })),
-  reserve: (id: string, quantity: number) =>
-    unwrap(apiRequest<ApiResponse<Inventory>>(`/inventory/${id}/reserve`, { method: "POST", body: { quantity } })),
-  releaseReservation: (id: string, quantity: number) =>
+  reserve: (id: string, quantity: number, ttl_minutes = 30) =>
+    unwrap(apiRequest<ApiResponse<{ inventory: Inventory; reservation: unknown }>>(`/inventory/${id}/reserve`, {
+      method: "POST",
+      body: { quantity, ttl_minutes },
+    })),
+  releaseReservation: (id: string, quantity: number, reservation_id?: string) =>
     unwrap(apiRequest<ApiResponse<Inventory>>(`/inventory/${id}/release-reservation`, {
       method: "POST",
-      body: { quantity },
+      body: { quantity, reservation_id },
     })),
+};
+
+export const stockMovementApi = {
+  list: (params: ListParams & {
+    movement_type?: StockMovement["movement_type"];
+    status?: StockMovement["status"];
+    product_id?: string;
+    location_id?: string;
+    user_id?: string;
+  } = {}) => apiRequest<PaginatedResponse<StockMovement>>("/stock-movements", { params }),
+  get: (id: string) => unwrap(apiRequest<ApiResponse<StockMovement>>(`/stock-movements/${id}`)),
+};
+
+export const supplierApi = {
+  list: (params: ListParams & { is_active?: "true" | "false" } = {}) =>
+    apiRequest<PaginatedResponse<Supplier>>("/suppliers", { params }),
+  get: (id: string) => unwrap(apiRequest<ApiResponse<Supplier>>(`/suppliers/${id}`)),
+  create: (body: {
+    name: string;
+    contact_email?: string;
+    phone?: string;
+    lead_time_days: number;
+    products?: Array<{ product_id: string; supplier_sku?: string; unit_cost: number; min_order_quantity?: number }>;
+  }) => unwrap(apiRequest<ApiResponse<Supplier>>("/suppliers", { method: "POST", body })),
+  update: (id: string, body: Partial<{
+    name: string;
+    contact_email: string;
+    phone: string;
+    lead_time_days: number;
+  }>) => unwrap(apiRequest<ApiResponse<Supplier>>(`/suppliers/${id}`, { method: "PATCH", body })),
+  deactivate: (id: string) => unwrap(apiRequest<ApiResponse<Supplier>>(`/suppliers/${id}`, { method: "DELETE" })),
+};
+
+export const purchaseOrderApi = {
+  list: (params: ListParams & { status?: PurchaseOrder["status"]; supplier_id?: string } = {}) =>
+    apiRequest<PaginatedResponse<PurchaseOrder>>("/purchase-orders", { params }),
+  get: (id: string) => unwrap(apiRequest<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`)),
+  create: (body: {
+    supplier_id: string;
+    expected_at?: string;
+    notes?: string;
+    lines: Array<{ product_id: string; location_id: string; quantity_ordered: number; unit_cost: number }>;
+  }) => unwrap(apiRequest<ApiResponse<PurchaseOrder>>("/purchase-orders", { method: "POST", body })),
+  submit: (id: string) => unwrap(apiRequest<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/submit`, { method: "POST" })),
+  approve: (id: string) => unwrap(apiRequest<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/approve`, { method: "POST" })),
+  receive: (id: string, body: { lines: Array<{ line_id: string; quantity_received: number; lot_code?: string }> }) =>
+    unwrap(apiRequest<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/receive`, { method: "POST", body })),
+  cancel: (id: string) => unwrap(apiRequest<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/cancel`, { method: "POST" })),
 };
 
 export const reportApi = {
@@ -175,6 +234,8 @@ export const reportApi = {
       params: { threshold_days },
     })),
   lowStock: () => unwrap(apiRequest<ApiResponse<{ low_stock_items: Inventory[]; count: number }>>("/reports/low-stock")),
+  reorderForecast: (params: { product_id?: string; location_id?: string; days?: number; lead_time_days?: number } = {}) =>
+    unwrap(apiRequest<ApiResponse<{ suggestions: ReorderForecast[]; count: number }>>("/reports/reorder-forecast", { params })),
   decayHistory: (params: { product_id?: string; location_id?: string } = {}) =>
     unwrap(apiRequest<ApiResponse<DecayAudit[]>>("/reports/decay-history", { params })),
   triggerDecay: (params: { sync?: boolean; threshold_days?: number } = {}) =>

@@ -121,6 +121,46 @@ const sellStockSchema = z.object({
   reason: z.string().optional(),
 });
 
+const createSupplierSchema = z.object({
+  name: z.string().min(1).max(200),
+  contact_email: z.string().email().optional(),
+  phone: z.string().max(50).optional(),
+  lead_time_days: z.number().int().positive().max(365).default(7),
+  products: z.array(z.object({
+    product_id: z.string().min(1),
+    supplier_sku: z.string().max(100).optional(),
+    unit_cost: z.number().positive(),
+    min_order_quantity: z.number().int().positive().default(1),
+  })).optional(),
+});
+
+const updateSupplierSchema = createSupplierSchema.partial();
+
+const createPurchaseOrderSchema = z.object({
+  supplier_id: z.string().min(1),
+  expected_at: z.string().datetime().optional(),
+  notes: z.string().max(1000).optional(),
+  lines: z.array(z.object({
+    product_id: z.string().min(1),
+    location_id: z.string().min(1),
+    quantity_ordered: z.number().int().positive(),
+    unit_cost: z.number().positive(),
+  })).min(1),
+});
+
+const updatePurchaseOrderSchema = z.object({
+  expected_at: z.string().datetime().nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+});
+
+const receivePurchaseOrderSchema = z.object({
+  lines: z.array(z.object({
+    line_id: z.string().min(1),
+    quantity_received: z.number().int().positive(),
+    lot_code: z.string().max(100).optional(),
+  })).min(1),
+});
+
 module.exports = {
   registerSchema,
   signupSchema,
@@ -139,4 +179,9 @@ module.exports = {
   transferStockSchema,
   createMovementSchema,
   sellStockSchema,
+  createSupplierSchema,
+  updateSupplierSchema,
+  createPurchaseOrderSchema,
+  updatePurchaseOrderSchema,
+  receivePurchaseOrderSchema,
 };

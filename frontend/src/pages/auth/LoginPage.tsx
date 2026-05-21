@@ -6,7 +6,7 @@ import { z } from "zod";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
 import { Button } from "../../components/ui/Button";
-import { Field, Input } from "../../components/ui/Fields";
+import { Field, Input, PasswordInput } from "../../components/ui/Fields";
 import { AuthShell } from "./AuthShell";
 
 const schema = z.object({
@@ -56,7 +56,7 @@ export function LoginPage() {
           <Input autoComplete="email" {...form.register("email")} placeholder="manager@leanstock.com" />
         </Field>
         <Field label="Password" error={form.formState.errors.password?.message}>
-          <Input type="password" autoComplete="current-password" {...form.register("password")} placeholder="Password" />
+          <PasswordInput autoComplete="current-password" {...form.register("password")} placeholder="Password" />
         </Field>
         <div className="flex items-center justify-between gap-3">
           <Link to="/forgot-password" className="text-sm font-semibold text-slate-600 hover:text-teal-700">

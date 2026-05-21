@@ -93,7 +93,7 @@ async function listLocations(query, user) {
     where,
     take: limit + 1,
     orderBy: { id: 'asc' },
-    include: { warehouse: { select: { name: true } } },
+    include: { warehouse: { select: { id: true, tenant_id: true, name: true } } },
   });
 
   return buildPaginationResponse(items, limit);

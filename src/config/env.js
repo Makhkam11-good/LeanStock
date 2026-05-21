@@ -23,6 +23,20 @@ function loadEnvFile(filePath) {
 
 loadEnvFile(path.join(__dirname, '..', '..', '.env'));
 
+function aliasEnv(primary, fallback) {
+  if (process.env[primary] === undefined && process.env[fallback] !== undefined) {
+    process.env[primary] = process.env[fallback];
+  }
+}
+
+aliasEnv('NODE_ENV', 'ENVIRONMENT');
+aliasEnv('APP_PORT', 'BACKEND_PORT');
+aliasEnv('JWT_SECRET', 'JWT_SECRET_KEY');
+aliasEnv('JWT_REFRESH_SECRET', 'JWT_REFRESH_SECRET_KEY');
+aliasEnv('SENDGRID_API_KEY', 'EMAIL_API_KEY');
+aliasEnv('EMAIL_FROM', 'EMAIL_FROM_ADDRESS');
+aliasEnv('CORS_ORIGIN', 'CORS_ORIGINS');
+
 const REQUIRED_VARS = [
   'DATABASE_URL',
   'JWT_SECRET',
@@ -73,6 +87,14 @@ function validateEnv() {
 
     if (process.env.CORS_ORIGIN === '*') {
       errors.push('CORS_ORIGIN cannot be * in production');
+    }
+
+    if (process.env.EMAIL_PROVIDER === 'mock') {
+      errors.push('EMAIL_PROVIDER cannot be mock in production');
+    }
+
+    if (process.env.EMAIL_FROM && process.env.EMAIL_FROM.includes('leanstock.local')) {
+      errors.push('EMAIL_FROM must be a verified real sender in production');
     }
   }
 

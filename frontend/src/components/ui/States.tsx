@@ -38,7 +38,13 @@ export function EmptyState({
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
-  const message = error instanceof ApiError ? error.message : "Something went wrong.";
+  const message = error instanceof ApiError
+    ? error.message
+    : error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "Something went wrong.";
   const code = error instanceof ApiError ? error.code : "ERROR";
 
   return (

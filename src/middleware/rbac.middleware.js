@@ -4,7 +4,7 @@ const { AuthorizationError } = require('../utils/errors');
 
 /**
  * Require one or more roles. Returns 403 if user's role is not in the list.
- * Usage: requireRole('MANAGER', 'SYSTEM_ADMIN')
+ * Usage: requireRole('COMPANY_ADMIN', 'SYSTEM_ADMIN')
  */
 function requireRole(...roles) {
   return (req, res, next) => {
@@ -23,9 +23,10 @@ function requireRole(...roles) {
 }
 
 // Convenience aliases
-const isManager = requireRole('MANAGER', 'SYSTEM_ADMIN');
-const isOperator = requireRole('MANAGER', 'WAREHOUSE_OPERATOR', 'SYSTEM_ADMIN');
-const isAuditor = requireRole('MANAGER', 'WAREHOUSE_OPERATOR', 'AUDITOR', 'SYSTEM_ADMIN');
+const isCompanyAdmin = requireRole('COMPANY_ADMIN', 'SYSTEM_ADMIN');
+const isManager = requireRole('COMPANY_ADMIN', 'MANAGER', 'SYSTEM_ADMIN');
+const isOperator = requireRole('COMPANY_ADMIN', 'MANAGER', 'WAREHOUSE_OPERATOR', 'SYSTEM_ADMIN');
+const isAuditor = requireRole('COMPANY_ADMIN', 'MANAGER', 'WAREHOUSE_OPERATOR', 'AUDITOR', 'SYSTEM_ADMIN');
 const isAdmin = requireRole('SYSTEM_ADMIN');
 
-module.exports = { requireRole, isManager, isOperator, isAuditor, isAdmin };
+module.exports = { requireRole, isCompanyAdmin, isManager, isOperator, isAuditor, isAdmin };

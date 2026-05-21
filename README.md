@@ -23,7 +23,7 @@ Production-grade backend for multi-tenant inventory management with atomic stock
 # Clone the repository
 git clone https://github.com/Makhkam11-good/LeanStock.git && cd LeanStock
 
-# Start everything (API + worker + PostgreSQL + Redis)
+# Start everything (API + frontend + worker + PostgreSQL + Redis)
 docker compose up --build
 
 # The API will:
@@ -34,6 +34,7 @@ docker compose up --build
 
 **Endpoints after startup:**
 - API: `http://localhost:3000/api/v1`
+- Frontend: `http://localhost:3001`
 - Swagger UI: `http://localhost:3000/docs` or `http://localhost:3000/api-docs`
 - Health check: `http://localhost:3000/health`
 - PostgreSQL from host tools/tests: `localhost:5433` (inside Docker network it remains `postgres:5432`)
@@ -73,7 +74,7 @@ After running `npm run db:seed`:
 | Role | Email | Password |
 |------|-------|----------|
 | Admin | admin@leanstock.com | Admin123 |
-| Manager | manager@leanstock.com | Manager123 |
+| Company admin | manager@leanstock.com | Manager123 |
 | Operator | operator@leanstock.com | Operator123 |
 | Auditor | auditor@leanstock.com | Auditor123 |
 
@@ -82,8 +83,8 @@ After running `npm run db:seed`:
 ### Auth
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| POST | /api/v1/auth/signup | - | Public signup as AUDITOR, queues verification email |
-| POST | /api/v1/auth/register | Bearer (SYSTEM_ADMIN) | Create user and assign role |
+| POST | /api/v1/auth/signup | - | Public signup as company admin, queues verification email |
+| POST | /api/v1/auth/register | Bearer (COMPANY_ADMIN/SYSTEM_ADMIN) | Create staff user and assign staff role |
 | POST | /api/v1/auth/login | - | Get JWT tokens |
 | POST | /api/v1/auth/refresh-token | - | Rotate refresh token and issue access token |
 | POST | /api/v1/auth/logout | - | Revoke refresh token |
@@ -93,14 +94,14 @@ After running `npm run db:seed`:
 | POST | /api/v1/auth/change-password | Bearer | Change password |
 | GET | /api/v1/auth/me | Bearer | Current user profile |
 
-### Products (MANAGER can write, all roles can read)
+### Products (COMPANY_ADMIN/MANAGER can write, all roles can read)
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | /api/v1/products | Bearer | List (cursor-paginated) |
-| POST | /api/v1/products | Bearer (MANAGER) | Create product |
+| POST | /api/v1/products | Bearer (COMPANY_ADMIN/MANAGER) | Create product |
 | GET | /api/v1/products/:id | Bearer | Get by ID |
-| PATCH | /api/v1/products/:id | Bearer (MANAGER) | Update |
-| POST | /api/v1/products/:id/discontinue | Bearer (MANAGER) | Discontinue |
+| PATCH | /api/v1/products/:id | Bearer (COMPANY_ADMIN/MANAGER) | Update |
+| POST | /api/v1/products/:id/discontinue | Bearer (COMPANY_ADMIN/MANAGER) | Discontinue |
 
 ### Inventory (atomicity)
 | Method | Endpoint | Auth | Description |
@@ -109,15 +110,28 @@ After running `npm run db:seed`:
 | GET | /api/v1/inventory/:id | Bearer | Get with lots |
 | POST | /api/v1/inventory/transfer | Bearer (OPERATOR+) | **Atomic transfer** |
 | POST | /api/v1/inventory/receive | Bearer (OPERATOR+) | Receive stock |
+| POST | /api/v1/inventory/sell | Bearer (OPERATOR+) | Sell stock |
 | POST | /api/v1/inventory/:id/reserve | Bearer (OPERATOR+) | Reserve stock |
 | POST | /api/v1/inventory/:id/release-reservation | Bearer (OPERATOR+) | Release reservation |
+
+### Suppliers & Purchase Orders
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET/POST | /api/v1/suppliers | Bearer | List / create suppliers |
+| GET/PATCH/DELETE | /api/v1/suppliers/:id | Bearer | Get / update / deactivate supplier |
+| GET/POST | /api/v1/purchase-orders | Bearer | List / create purchase orders |
+| GET/PATCH | /api/v1/purchase-orders/:id | Bearer | Get / update draft purchase order |
+| POST | /api/v1/purchase-orders/:id/submit | Bearer (COMPANY_ADMIN/MANAGER) | Submit draft order |
+| POST | /api/v1/purchase-orders/:id/approve | Bearer (COMPANY_ADMIN/MANAGER) | Approve and queue supplier confirmation email |
+| POST | /api/v1/purchase-orders/:id/receive | Bearer (COMPANY_ADMIN/MANAGER) | Atomically receive ordered stock into inventory |
+| POST | /api/v1/purchase-orders/:id/cancel | Bearer (COMPANY_ADMIN/MANAGER) | Cancel order |
 
 ### Warehouses & Locations
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET/POST | /api/v1/warehouses | Bearer | List / Create |
 | GET/PATCH | /api/v1/warehouses/:id | Bearer | Get / Update |
-| POST | /api/v1/warehouses/:id/close | Bearer (MANAGER) | Close warehouse |
+| POST | /api/v1/warehouses/:id/close | Bearer (COMPANY_ADMIN/MANAGER) | Close warehouse |
 | GET/POST | /api/v1/locations | Bearer | List / Create |
 | GET/PATCH/DELETE | /api/v1/locations/:id | Bearer | CRUD |
 
@@ -127,19 +141,26 @@ After running `npm run db:seed`:
 | GET | /api/v1/reports/dead-stock | Bearer | Dead stock lots |
 | GET | /api/v1/reports/decay-history | Bearer | Decay audit trail |
 | GET | /api/v1/reports/low-stock | Bearer | Low stock alerts |
-| POST | /api/v1/reports/trigger-decay | Bearer (MANAGER) | Queue manual decay job |
-| GET | /api/v1/jobs/:id | Bearer (MANAGER) | Inspect queued/completed/failed job |
+| GET | /api/v1/reports/reorder-forecast | Bearer | Moving-average reorder suggestions |
+| POST | /api/v1/reports/trigger-decay | Bearer (COMPANY_ADMIN/MANAGER) | Queue manual decay job |
+| GET | /api/v1/jobs/:id | Bearer (COMPANY_ADMIN/MANAGER) | Inspect queued/completed/failed job |
 
 ## Architecture Decisions
 
 ### Atomic Stock Transfer
-All inventory transfers run inside a serializable Prisma `$transaction` with optimistic conditional updates. This prevents:
+All inventory mutations use Redis locks plus serializable Prisma `$transaction` calls with optimistic conditional updates. This prevents:
 - Overselling (two concurrent transfers depleting same stock)
 - Data inconsistency between aggregate inventory and lot-level records
 - FIFO lineage breaks during concurrent lot consumption
 
 ### Email and Background Jobs
-Signup verification, password reset, stock receipt, stock transfer, and dead-stock decay alerts are enqueued through Redis. The API returns quickly, while `npm run worker` delivers emails through the configured provider. Local development uses `EMAIL_PROVIDER=mock`; production should use `EMAIL_PROVIDER=sendgrid` with `SENDGRID_API_KEY`.
+Signup verification, password reset, low stock alerts, stock receipt, stock transfer, purchase order confirmations, and dead-stock decay alerts are enqueued through Redis. The API returns quickly, while `npm run worker` delivers emails through the configured provider. Local development uses `EMAIL_PROVIDER=mock`; production must use `EMAIL_PROVIDER=sendgrid` with `EMAIL_API_KEY` / `SENDGRID_API_KEY`.
+
+### Reservation TTL
+Reservations create explicit `InventoryReservation` rows with an `expires_at` timestamp. A scheduled Redis job runs every five minutes by default and releases expired reservations automatically.
+
+### Forecasting
+`GET /api/v1/reports/reorder-forecast` calculates moving-average demand from completed outgoing stock movements and returns recommended reorder quantities based on available stock, reorder point, and lead time.
 
 ### Dead Stock Decay (Lot-Level)
 Decay targets individual inventory lots, not products. A product can be "fresh" in one warehouse and "stale" in another. The cron runs daily at 02:00 UTC and:
@@ -152,7 +173,8 @@ Decay targets individual inventory lots, not products. A product can be "fresh" 
 | Role | Can Write | Can Read | Special |
 |------|-----------|----------|---------|
 | SYSTEM_ADMIN | Everything | Everything | User management |
-| MANAGER | Products, inventory, warehouses | Everything | Approve transfers, trigger decay |
+| COMPANY_ADMIN | Company users, products, inventory, warehouses | Company data | Staff management, trigger decay |
+| MANAGER | Products, inventory, warehouses | Company data | Operational management, trigger decay |
 | WAREHOUSE_OPERATOR | Stock movements, reservations | Most entities | Day-to-day operations |
 | AUDITOR | Nothing | Everything | Compliance read-only |
 
@@ -191,6 +213,7 @@ See `.env.example` for all variables. Critical ones that **must** be set:
 - `REDIS_URL` - Redis connection for background jobs
 - `APP_BASE_URL` - Public API base URL used in email links
 - `EMAIL_FROM` / `SENDGRID_API_KEY` - real email delivery configuration
+- Rubric aliases are also supported: `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET_KEY`, `EMAIL_API_KEY`, `EMAIL_FROM_ADDRESS`, `BACKEND_PORT`, `FRONTEND_PORT`, `ENVIRONMENT`, and `CORS_ORIGINS`
 
 The app **refuses to start** if critical secrets are missing.
 
@@ -216,7 +239,8 @@ LeanStock/
 │   └── integration/     # Auth flow, RBAC, transfer atomicity
 ├── docs/
 │   └── openapi.yaml     # OpenAPI 3.0 spec → Swagger UI
-├── docker-compose.yml   # API + PostgreSQL
+├── frontend/            # React demo frontend
+├── docker-compose.yml   # API + frontend + worker + PostgreSQL + Redis
 ├── Dockerfile           # Multi-stage production build
 ├── .github/workflows/   # CI: lint + test + Docker build
 ├── CHANGELOG.md         # Deviations from blueprint documented

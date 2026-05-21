@@ -6,7 +6,7 @@ import { z } from "zod";
 import { ApiError } from "../../api/client";
 import { authApi } from "../../api/leanstock";
 import { Button } from "../../components/ui/Button";
-import { Field, Input } from "../../components/ui/Fields";
+import { Field, Input, PasswordInput } from "../../components/ui/Fields";
 import { AuthShell } from "./AuthShell";
 
 const schema = z.object({
@@ -45,7 +45,7 @@ export function ResetPasswordPage() {
           <Input {...form.register("token")} />
         </Field>
         <Field label="New password" error={form.formState.errors.new_password?.message}>
-          <Input type="password" autoComplete="new-password" {...form.register("new_password")} />
+          <PasswordInput autoComplete="new-password" {...form.register("new_password")} />
         </Field>
         <div className="flex items-center justify-between gap-3">
           <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-teal-700">

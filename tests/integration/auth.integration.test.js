@@ -124,7 +124,7 @@ describe('Auth API Integration Tests', () => {
         .send(signupUser);
 
       expect(res.status).toBe(201);
-      expect(res.body.data.role).toBe('MANAGER');
+      expect(res.body.data.role).toBe('COMPANY_ADMIN');
       expect(res.body.data.tenant).toBeDefined();
       expect(res.body.data.tenant.is_active).toBe(false);
       expect(res.body.data.is_email_verified).toBe(false);
@@ -161,6 +161,18 @@ describe('Auth API Integration Tests', () => {
       expect(workerRes.status).toBe(201);
       expect(workerRes.body.data.role).toBe('WAREHOUSE_OPERATOR');
       expect(workerRes.body.data.tenant_id).toBe(res.body.data.tenant_id);
+
+      const companyAdminRes = await request(app)
+        .post('/api/v1/auth/register')
+        .set('Authorization', `Bearer ${loginAfterVerify.body.data.access_token}`)
+        .send({
+          email: `integrationtest.company-admin.${Date.now()}@example.com`,
+          password: 'SecurePass123',
+          first_name: 'Company',
+          last_name: 'Admin',
+          role: 'COMPANY_ADMIN',
+        });
+      expect(companyAdminRes.status).toBe(422);
     });
   });
 

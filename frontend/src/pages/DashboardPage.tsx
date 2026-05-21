@@ -73,7 +73,7 @@ export function DashboardPage() {
         <StatCard label="Low stock alerts" value={lowStock.data?.count ?? "-"} icon={AlertTriangle} tone="amber" />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid min-w-0 gap-6 2xl:grid-cols-2">
         {isPlatform ? (
           <Card>
             <SectionHeader title="Companies" description="SYSTEM_ADMIN-only tenant overview." />

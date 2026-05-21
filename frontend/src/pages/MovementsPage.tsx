@@ -1,19 +1,20 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRightLeft, Download, ReceiptText, Upload } from "lucide-react";
+import { ArrowRightLeft, Download, Upload } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { ApiError } from "../api/client";
-import { inventoryApi, locationApi, productApi } from "../api/leanstock";
+import { inventoryApi, locationApi, productApi, stockMovementApi } from "../api/leanstock";
 import { PageShell } from "../components/PageShell";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card, SectionHeader } from "../components/ui/Card";
+import { DataTable } from "../components/ui/DataTable";
 import { Field, Input, Select } from "../components/ui/Fields";
-import { EmptyState, ErrorState } from "../components/ui/States";
-import { compactId } from "../lib/format";
-import type { StockMovement } from "../types/api";
+import { ErrorState } from "../components/ui/States";
+import { compactId, formatDateTime } from "../lib/format";
+import type { MovementStatus, MovementType, StockMovement } from "../types/api";
 
 const receiveSchema = z.object({
   product_id: z.string().min(1, "Product is required"),
@@ -51,13 +52,45 @@ function MovementResult({ movement }: { movement: StockMovement | null }) {
   );
 }
 
+function movementTone(type: MovementType) {
+  if (type === "INCOMING") return "green";
+  if (type === "TRANSFER") return "blue";
+  if (type === "OUTGOING") return "amber";
+  if (type === "WRITE_OFF") return "red";
+  return "neutral";
+}
+
+function statusTone(status: MovementStatus) {
+  if (status === "COMPLETED" || status === "APPROVED") return "green";
+  if (status === "REJECTED") return "red";
+  if (status === "IN_TRANSIT") return "blue";
+  return "amber";
+}
+
+function locationLabel(location: StockMovement["from_location"]) {
+  if (!location) return "-";
+  return location.warehouse?.name ? `${location.warehouse.name} / ${location.name}` : location.name;
+}
+
 export function MovementsPage() {
   const queryClient = useQueryClient();
   const [lastMovement, setLastMovement] = useState<StockMovement | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [movementType, setMovementType] = useState<"" | MovementType>("");
+  const [movementStatus, setMovementStatus] = useState<"" | MovementStatus>("");
+  const [after, setAfter] = useState<string | null>(null);
 
   const products = useQuery({ queryKey: ["products", "movement-options"], queryFn: () => productApi.list({ limit: 100 }) });
   const locations = useQuery({ queryKey: ["locations", "movement-options"], queryFn: () => locationApi.list({ limit: 100 }) });
+  const movements = useQuery({
+    queryKey: ["stock-movements", { movementType, movementStatus, after }],
+    queryFn: () => stockMovementApi.list({
+      limit: 20,
+      movement_type: movementType || undefined,
+      status: movementStatus || undefined,
+      after,
+    }),
+  });
 
   const receiveForm = useForm<z.infer<typeof receiveSchema>>({
     resolver: zodResolver(receiveSchema),
@@ -77,6 +110,8 @@ export function MovementsPage() {
     setServerError(null);
     void queryClient.invalidateQueries({ queryKey: ["inventory"] });
     void queryClient.invalidateQueries({ queryKey: ["reports"] });
+    void queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+    setAfter(null);
   };
 
   const receive = useMutation({
@@ -115,11 +150,11 @@ export function MovementsPage() {
   const locationOptions = locations.data?.data ?? [];
 
   return (
-    <PageShell title="Stock movements" description="Operational stock writes are supported through receive, transfer, and sell endpoints. Backend has no list movements endpoint yet.">
+    <PageShell title="Stock movements" description="Receive, transfer, sell, and purchase-order receiving activity recorded from the live StockMovement table.">
       {serverError ? <ErrorState error={new ApiError(400, { code: "MOVEMENT_ERROR", message: serverError })} /> : null}
       <MovementResult movement={lastMovement} />
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-2 2xl:grid-cols-3">
         <Card>
           <SectionHeader title="Receive stock" description="Creates incoming movement, inventory row, and lot." action={<Download className="h-5 w-5 text-teal-700" />} />
           <form className="space-y-4" onSubmit={receiveForm.handleSubmit((values) => receive.mutate(values))}>
@@ -211,11 +246,54 @@ export function MovementsPage() {
       </div>
 
       <Card>
-        <SectionHeader title="Movement history" description="StockMovement is a Prisma model, but no `GET /stock-movements` route is exposed in this backend." />
-        <EmptyState
-          title="History endpoint not available"
-          description="The frontend does not fabricate movement rows. Once the backend exposes a list endpoint, this page can render completed, pending, and rejected movements here."
-          action={<Badge tone="amber"><ReceiptText className="mr-1 h-3 w-3" /> Backend gap</Badge>}
+        <SectionHeader title="Movement history" description="Live cursor-paginated history from `/stock-movements`." />
+        <div className="mb-4 grid gap-3 md:grid-cols-[180px_180px_auto]">
+          <Field label="Type">
+            <Select value={movementType} onChange={(event) => { setMovementType(event.target.value as "" | MovementType); setAfter(null); }}>
+              <option value="">All types</option>
+              <option value="INCOMING">Incoming</option>
+              <option value="OUTGOING">Outgoing</option>
+              <option value="TRANSFER">Transfer</option>
+              <option value="ADJUSTMENT">Adjustment</option>
+              <option value="WRITE_OFF">Write off</option>
+            </Select>
+          </Field>
+          <Field label="Status">
+            <Select value={movementStatus} onChange={(event) => { setMovementStatus(event.target.value as "" | MovementStatus); setAfter(null); }}>
+              <option value="">All statuses</option>
+              <option value="PENDING">Pending</option>
+              <option value="APPROVED">Approved</option>
+              <option value="IN_TRANSIT">In transit</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="REJECTED">Rejected</option>
+            </Select>
+          </Field>
+          <div className="flex items-end">
+            <Button variant="secondary" onClick={() => { setMovementType(""); setMovementStatus(""); setAfter(null); }}>
+              Reset
+            </Button>
+          </div>
+        </div>
+        <DataTable
+          data={movements.data?.data}
+          isLoading={movements.isLoading}
+          error={movements.error}
+          pagination={movements.data?.pagination}
+          onLoadMore={() => setAfter(movements.data?.pagination.next_cursor ?? null)}
+          isFetchingMore={movements.isFetching}
+          getKey={(movement) => movement.id}
+          emptyTitle="No movements yet"
+          emptyDescription="Receive, transfer, sell, or receive a purchase order to create the first history row."
+          columns={[
+            { header: "Date", cell: (movement) => formatDateTime(movement.completed_at ?? movement.created_at) },
+            { header: "Type", cell: (movement) => <Badge tone={movementTone(movement.movement_type)}>{movement.movement_type}</Badge> },
+            { header: "Status", cell: (movement) => <Badge tone={statusTone(movement.status)}>{movement.status}</Badge> },
+            { header: "Product", cell: (movement) => movement.product ? `${movement.product.sku} - ${movement.product.name}` : movement.product_id },
+            { header: "From", cell: (movement) => locationLabel(movement.from_location) },
+            { header: "To", cell: (movement) => locationLabel(movement.to_location) },
+            { header: "Qty", width: "5rem", cell: (movement) => movement.quantity },
+            { header: "Reason", cell: (movement) => movement.reason || "-" },
+          ]}
         />
       </Card>
     </PageShell>

@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/authController');
 const { authenticate } = require('../middleware/auth.middleware');
-const { isManager } = require('../middleware/rbac.middleware');
+const { isCompanyAdmin } = require('../middleware/rbac.middleware');
 const { validate } = require('../middleware/validateRequest');
 const { authLimiter } = require('../middleware/rateLimiter');
 const {
@@ -22,8 +22,8 @@ const {
 // POST /auth/signup - Public company registration with email verification
 router.post('/signup', authLimiter, validate(signupSchema), ctrl.signup);
 
-// POST /auth/register - Tenant managers create workers; SYSTEM_ADMIN can assist globally.
-router.post('/register', authenticate, isManager, validate(registerSchema), ctrl.register);
+// POST /auth/register - Tenant company admins create staff; SYSTEM_ADMIN can assist globally.
+router.post('/register', authenticate, isCompanyAdmin, validate(registerSchema), ctrl.register);
 
 // POST /auth/login - Rate limited
 router.post('/login', authLimiter, validate(loginSchema), ctrl.login);

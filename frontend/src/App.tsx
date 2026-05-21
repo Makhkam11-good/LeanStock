@@ -25,10 +25,11 @@ export default function App() {
       <Route element={<PublicOnlyRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Route>
+
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
@@ -36,14 +37,14 @@ export default function App() {
           <Route element={<ProtectedRoute roles={["SYSTEM_ADMIN"]} />}>
             <Route path="/companies" element={<CompaniesPage />} />
           </Route>
-          <Route element={<ProtectedRoute roles={["SYSTEM_ADMIN", "MANAGER"]} />}>
+          <Route element={<ProtectedRoute roles={["SYSTEM_ADMIN", "COMPANY_ADMIN"]} />}>
             <Route path="/users" element={<UsersPage />} />
           </Route>
           <Route path="/roles" element={<RolesPage />} />
           <Route path="/warehouses" element={<WarehousesPage />} />
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
-          <Route element={<ProtectedRoute roles={["SYSTEM_ADMIN", "MANAGER", "WAREHOUSE_OPERATOR"]} />}>
+          <Route element={<ProtectedRoute roles={["SYSTEM_ADMIN", "COMPANY_ADMIN", "MANAGER", "WAREHOUSE_OPERATOR"]} />}>
             <Route path="/movements" element={<MovementsPage />} />
           </Route>
           <Route path="/orders" element={<OrdersPage />} />

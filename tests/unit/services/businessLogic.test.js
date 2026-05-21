@@ -82,6 +82,35 @@ describe('Cursor Pagination', () => {
   });
 });
 
+describe('Reorder Forecast Formula', () => {
+  const { calculateMovingAverageReorder } = require('../../../src/services/forecastService');
+
+  test('recommends enough stock for lead-time demand plus reorder point', () => {
+    const result = calculateMovingAverageReorder({
+      inventory: { quantity_on_hand: 20, quantity_reserved: 5, reorder_point: 10 },
+      soldQuantity: 60,
+      days: 30,
+      leadTimeDays: 7,
+    });
+
+    expect(result.daily_demand).toBe(2);
+    expect(result.available_quantity).toBe(15);
+    expect(result.expected_demand_during_lead_time).toBe(14);
+    expect(result.recommended_order_quantity).toBe(9);
+  });
+
+  test('does not recommend ordering when available stock is sufficient', () => {
+    const result = calculateMovingAverageReorder({
+      inventory: { quantity_on_hand: 100, quantity_reserved: 0, reorder_point: 20 },
+      soldQuantity: 10,
+      days: 30,
+      leadTimeDays: 7,
+    });
+
+    expect(result.recommended_order_quantity).toBe(0);
+  });
+});
+
 describe('Password Validation', () => {
   const { validatePasswordStrength } = require('../../../src/utils/password.util');
 

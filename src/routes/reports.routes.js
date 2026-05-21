@@ -17,7 +17,10 @@ router.get('/decay-history', isAuditor, ctrl.getDecayHistory);
 // GET /reports/low-stock
 router.get('/low-stock', isAuditor, ctrl.getLowStockReport);
 
-// POST /reports/trigger-decay (manual trigger, MANAGER only)
+// GET /reports/reorder-forecast
+router.get('/reorder-forecast', isAuditor, ctrl.getReorderForecast);
+
+// POST /reports/trigger-decay (manual trigger, company admin / manager)
 router.post('/trigger-decay', isManager, ctrl.triggerDecayManually);
 
 module.exports = router;

@@ -10,7 +10,7 @@ import { PageShell } from "../components/PageShell";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card, SectionHeader } from "../components/ui/Card";
-import { Field, Input } from "../components/ui/Fields";
+import { Field, Input, PasswordInput } from "../components/ui/Fields";
 import { formatDate } from "../lib/format";
 import { roleLabels } from "../lib/roles";
 
@@ -45,7 +45,7 @@ export function ProfilePage() {
 
   return (
     <PageShell title="Profile" description="Identity and password tools backed by `/auth/me` and `/auth/change-password`.">
-      <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
+      <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
         <Card>
           <SectionHeader title="Account" description="Current authenticated user." />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -82,10 +82,10 @@ export function ProfilePage() {
             {serverError ? <div className="rounded-md bg-rose-50 p-3 text-sm text-rose-700">{serverError}</div> : null}
             {message ? <div className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">{message}</div> : null}
             <Field label="Current password" error={form.formState.errors.current_password?.message}>
-              <Input type="password" autoComplete="current-password" {...form.register("current_password")} />
+              <PasswordInput autoComplete="current-password" {...form.register("current_password")} />
             </Field>
             <Field label="New password" error={form.formState.errors.new_password?.message}>
-              <Input type="password" autoComplete="new-password" {...form.register("new_password")} />
+              <PasswordInput autoComplete="new-password" {...form.register("new_password")} />
             </Field>
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? "Saving..." : "Change password"}

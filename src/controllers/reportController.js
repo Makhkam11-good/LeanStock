@@ -7,6 +7,8 @@ const { getPrismaClient } = require('../config/database');
 const { enqueueJob } = require('../jobs/redisQueue');
 const { QUEUE_DECAY_NAME } = require('../config/env');
 const { getTenantId, isSystemAdmin, requireTenantId } = require('../utils/tenantScope');
+const forecastService = require('../services/forecastService');
+const { enqueueEmail } = require('../services/emailService');
 
 const prisma = getPrismaClient();
 
@@ -58,7 +60,31 @@ const getLowStockReport = asyncHandler(async (req, res) => {
   });
   // filter in JS since Prisma can't easily compare two columns
   const lowStock = items.filter(i => i.quantity_on_hand <= i.reorder_point);
+  if (lowStock.length > 0 && req.query.notify === 'true') {
+    const managers = await prisma.user.findMany({
+      where: {
+        ...requestTenantWhere(req.user),
+        role: { in: ['COMPANY_ADMIN', 'MANAGER'] },
+        is_active: true,
+        is_email_verified: true,
+      },
+      select: { email: true },
+      take: 20,
+    });
+    await Promise.all(managers.map(manager => enqueueEmail({
+      to: manager.email,
+      event_type: 'inventory.low_stock_alert',
+      subject: 'LeanStock low stock alert',
+      text: `${lowStock.length} inventory item(s) are at or below reorder point.`,
+      html: `<p>${lowStock.length} inventory item(s) are at or below reorder point.</p>`,
+    })));
+  }
   return success(res, { low_stock_items: lowStock, count: lowStock.length });
+});
+
+const getReorderForecast = asyncHandler(async (req, res) => {
+  const forecast = await forecastService.getReorderForecast(req.query, req.user);
+  return success(res, { suggestions: forecast, count: forecast.length });
 });
 
 const triggerDecayManually = asyncHandler(async (req, res) => {
@@ -76,4 +102,4 @@ const triggerDecayManually = asyncHandler(async (req, res) => {
   return success(res, { message: 'Dead stock decay job queued', job });
 });
 
-module.exports = { getDeadStockReport, getDecayHistory, getLowStockReport, triggerDecayManually };
+module.exports = { getDeadStockReport, getDecayHistory, getLowStockReport, getReorderForecast, triggerDecayManually };

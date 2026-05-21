@@ -65,7 +65,7 @@ async function seed() {
       password_hash: await bcrypt.hash('Manager123', 10),
       first_name: 'Alice',
       last_name: 'Manager',
-      role: 'MANAGER',
+      role: 'COMPANY_ADMIN',
       is_active: true,
       is_email_verified: true,
     },

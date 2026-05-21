@@ -45,6 +45,8 @@ const reserveInventory = asyncHandler(async (req, res) => {
   const result = await inventoryService.reserveInventory({
     inventory_id: req.params.id,
     quantity: req.body.quantity,
+    ttl_minutes: req.body.ttl_minutes,
+    reason: req.body.reason,
     user_id: req.user.sub,
     user: req.user,
   });
@@ -55,6 +57,7 @@ const releaseReservation = asyncHandler(async (req, res) => {
   const result = await inventoryService.releaseReservation({
     inventory_id: req.params.id,
     quantity: req.body.quantity,
+    reservation_id: req.body.reservation_id,
     user_id: req.user.sub,
     user: req.user,
   });

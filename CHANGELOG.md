@@ -10,7 +10,7 @@
   - Token refresh endpoint
   - Password change with re-authentication
   - bcrypt password hashing (configurable rounds)
-  - RBAC middleware with 4 roles: MANAGER, WAREHOUSE_OPERATOR, AUDITOR, SYSTEM_ADMIN
+  - RBAC middleware with 5 roles: COMPANY_ADMIN, MANAGER, WAREHOUSE_OPERATOR, AUDITOR, SYSTEM_ADMIN
   - Rate limiting on /auth/login and /auth/register (5 attempts/min/IP)
   - CORS configured — no wildcard origins in production
 
@@ -34,7 +34,7 @@
   - DecayAudit immutable records for compliance
   - PriceHistory location-scoped overrides (global catalog stays clean)
   - Reports: dead stock, decay history, low stock
-  - Manual decay trigger endpoint for managers
+  - Manual decay trigger endpoint for company admins and managers
 
 - **API Documentation**
   - OpenAPI 3.0 spec with all endpoints documented

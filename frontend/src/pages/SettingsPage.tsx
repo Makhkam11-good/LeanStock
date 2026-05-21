@@ -20,7 +20,7 @@ export function SettingsPage() {
 
   return (
     <PageShell title="Settings" description="Operational settings surfaced from backend capabilities without inventing unsupported APIs.">
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+      <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card>
           <SectionHeader title="Integration status" description="These are the frontend/backend integration assumptions in use." />
           <DataTable

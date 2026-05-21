@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 export function Field({
@@ -24,6 +26,29 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
       className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 shadow-sm transition placeholder:text-slate-400 focus:border-teal-500"
       {...props}
     />
+  );
+}
+
+export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div className="relative">
+      <input
+        className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 pr-11 text-sm text-slate-950 shadow-sm transition placeholder:text-slate-400 focus:border-teal-500"
+        type={isVisible ? "text" : "password"}
+        {...props}
+      />
+      <button
+        type="button"
+        className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+        aria-label={isVisible ? "Hide password" : "Show password"}
+        title={isVisible ? "Hide password" : "Show password"}
+        onClick={() => setIsVisible((value) => !value)}
+      >
+        {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
   );
 }
 

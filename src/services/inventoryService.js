@@ -6,6 +6,7 @@ const { getPaginationParams, buildPaginationResponse } = require('../utils/pagin
 const { tenantWhere } = require('../utils/tenantScope');
 const { enqueueEmail } = require('./emailService');
 const logger = require('../utils/logger');
+const { withRedisLock } = require('../utils/redisLock');
 
 const prisma = getPrismaClient();
 
@@ -37,7 +38,14 @@ async function queueInventoryEventEmail(userId, message) {
   return enqueueEmail({ to: user.email, ...message });
 }
 
-async function transferStockBetweenLocations({ product_id, from_location_id, to_location_id, quantity, user_id, reason, user }) {
+async function transferStockBetweenLocations(data) {
+  return withRedisLock(
+    [`lock:location:${data.from_location_id}`, `lock:location:${data.to_location_id}`, `lock:product:${data.product_id}`],
+    () => transferStockBetweenLocationsUnlocked(data)
+  );
+}
+
+async function transferStockBetweenLocationsUnlocked({ product_id, from_location_id, to_location_id, quantity, user_id, reason, user }) {
   if (from_location_id === to_location_id) {
     throw new ConflictError('Source and destination locations must be different');
   }
@@ -213,7 +221,14 @@ async function transferStockBetweenLocations({ product_id, from_location_id, to_
   return result;
 }
 
-async function receiveStock({ product_id, location_id, quantity, unit_cost, lot_code, user_id, user }) {
+async function receiveStock(data) {
+  return withRedisLock(
+    [`lock:location:${data.location_id}`, `lock:product:${data.product_id}`],
+    () => receiveStockUnlocked(data)
+  );
+}
+
+async function receiveStockUnlocked({ product_id, location_id, quantity, unit_cost, lot_code, user_id, user }) {
   const result = await prisma.$transaction(async (tx) => {
     const location = await tx.location.findFirst({
       where: { id: location_id, warehouse: { is: tenantWhere(user) } },
@@ -300,7 +315,14 @@ async function receiveStock({ product_id, location_id, quantity, unit_cost, lot_
   return result;
 }
 
-async function sellStock({ product_id, location_id, quantity, user_id, reason, user }) {
+async function sellStock(data) {
+  return withRedisLock(
+    [`lock:location:${data.location_id}`, `lock:product:${data.product_id}`],
+    () => sellStockUnlocked(data)
+  );
+}
+
+async function sellStockUnlocked({ product_id, location_id, quantity, user_id, reason, user }) {
   const result = await prisma.$transaction(
     async (tx) => {
       const location = await tx.location.findFirst({
@@ -479,7 +501,11 @@ async function getInventoryById(id, user) {
   return inv;
 }
 
-async function reserveInventory({ inventory_id, quantity, user_id, user }) {
+async function reserveInventory(data) {
+  return withRedisLock(`lock:inventory:${data.inventory_id}`, () => reserveInventoryUnlocked(data));
+}
+
+async function reserveInventoryUnlocked({ inventory_id, quantity, user_id, user, ttl_minutes = 30, reason }) {
   return prisma.$transaction(async (tx) => {
     const inv = await tx.inventory.findFirst({
       where: {
@@ -507,6 +533,15 @@ async function reserveInventory({ inventory_id, quantity, user_id, user }) {
       throw new ConflictError('Inventory changed while reserving stock, please retry');
     }
 
+    const reservation = await tx.inventoryReservation.create({
+      data: {
+        inventory_id,
+        user_id,
+        quantity,
+        expires_at: new Date(Date.now() + ttl_minutes * 60 * 1000),
+        reason: reason || null,
+      },
+    });
     const updated = await tx.inventory.findUnique({ where: { id: inventory_id } });
     await tx.auditLog.create({
       data: {
@@ -519,11 +554,15 @@ async function reserveInventory({ inventory_id, quantity, user_id, user }) {
       },
     });
 
-    return updated;
+    return { inventory: updated, reservation };
   });
 }
 
-async function releaseReservation({ inventory_id, quantity, user_id, user }) {
+async function releaseReservation(data) {
+  return withRedisLock(`lock:inventory:${data.inventory_id}`, () => releaseReservationUnlocked(data));
+}
+
+async function releaseReservationUnlocked({ inventory_id, quantity, user_id, user, reservation_id }) {
   return prisma.$transaction(async (tx) => {
     const inv = await tx.inventory.findFirst({
       where: {
@@ -535,6 +574,15 @@ async function releaseReservation({ inventory_id, quantity, user_id, user }) {
     if (!inv) throw new NotFoundError('Inventory record');
     if (inv.quantity_reserved < quantity) {
       throw new ConflictError(`Cannot release ${quantity} - only ${inv.quantity_reserved} reserved`);
+    }
+
+    let reservation = null;
+    if (reservation_id) {
+      reservation = await tx.inventoryReservation.findFirst({
+        where: { id: reservation_id, inventory_id, status: 'ACTIVE' },
+      });
+      if (!reservation) throw new NotFoundError('Reservation');
+      quantity = reservation.quantity;
     }
 
     const releaseUpdate = await tx.inventory.updateMany({
@@ -549,6 +597,12 @@ async function releaseReservation({ inventory_id, quantity, user_id, user }) {
     }
 
     const updated = await tx.inventory.findUnique({ where: { id: inventory_id } });
+    if (reservation_id) {
+      reservation = await tx.inventoryReservation.update({
+        where: { id: reservation_id },
+        data: { status: 'RELEASED', released_at: new Date() },
+      });
+    }
     await tx.auditLog.create({
       data: {
         user_id,
@@ -560,8 +614,40 @@ async function releaseReservation({ inventory_id, quantity, user_id, user }) {
       },
     });
 
-    return updated;
+    return reservation ? { inventory: updated, reservation } : updated;
   });
+}
+
+async function releaseExpiredReservations(limit = 100) {
+  const expired = await prisma.inventoryReservation.findMany({
+    where: { status: 'ACTIVE', expires_at: { lte: new Date() } },
+    take: limit,
+    orderBy: { expires_at: 'asc' },
+  });
+
+  let released = 0;
+  for (const reservation of expired) {
+    await withRedisLock(`lock:inventory:${reservation.inventory_id}`, async () => {
+      await prisma.$transaction(async (tx) => {
+        const active = await tx.inventoryReservation.findFirst({
+          where: { id: reservation.id, status: 'ACTIVE' },
+        });
+        if (!active) return;
+
+        await tx.inventory.update({
+          where: { id: reservation.inventory_id },
+          data: { quantity_reserved: { decrement: reservation.quantity } },
+        });
+        await tx.inventoryReservation.update({
+          where: { id: reservation.id },
+          data: { status: 'EXPIRED', released_at: new Date() },
+        });
+        released++;
+      });
+    });
+  }
+
+  return { scanned: expired.length, released };
 }
 
 module.exports = {
@@ -572,4 +658,5 @@ module.exports = {
   getInventoryById,
   reserveInventory,
   releaseReservation,
+  releaseExpiredReservations,
 };

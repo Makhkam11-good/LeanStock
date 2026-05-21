@@ -9,6 +9,7 @@ let decayJob = null;
 
 // Runs every day at 02:00 AM UTC (configurable via env)
 const CRON_SCHEDULE = process.env.DEAD_STOCK_DECAY_SCHEDULE || '0 2 * * *';
+const RESERVATION_RELEASE_SCHEDULE = process.env.RESERVATION_RELEASE_SCHEDULE || '*/5 * * * *';
 
 function startDecayJob() {
   if (!process.env.CRON_ENABLED || process.env.CRON_ENABLED === 'false') {
@@ -28,6 +29,18 @@ function startDecayJob() {
       logger.info(`[CronScheduler] Decay job queued: ${job.id}`);
     } catch (err) {
       logger.error(`[CronScheduler] Decay job failed: ${err.message}`, { stack: err.stack });
+    }
+  }, {
+    timezone: 'UTC',
+  });
+
+  cron.schedule(RESERVATION_RELEASE_SCHEDULE, async () => {
+    logger.info('[CronScheduler] Expired reservation release job triggered');
+    try {
+      const job = await enqueueJob(QUEUE_DECAY_NAME, 'inventory.release-expired-reservations', { scheduled: true });
+      logger.info(`[CronScheduler] Reservation release job queued: ${job.id}`);
+    } catch (err) {
+      logger.error(`[CronScheduler] Reservation release job failed: ${err.message}`, { stack: err.stack });
     }
   }, {
     timezone: 'UTC',

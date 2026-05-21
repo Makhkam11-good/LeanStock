@@ -4,6 +4,7 @@ require('./config/env');
 
 const { sendEmailNow } = require('./services/emailService');
 const { applyDeadStockDecay } = require('./services/decayService');
+const { releaseExpiredReservations } = require('./services/inventoryService');
 const {
   reserveJob,
   markJobCompleted,
@@ -27,6 +28,10 @@ async function processJob(job) {
 
   if (job.type === 'dead-stock.decay') {
     return applyDeadStockDecay(job.payload || {});
+  }
+
+  if (job.type === 'inventory.release-expired-reservations') {
+    return releaseExpiredReservations(job.payload?.limit || 100);
   }
 
   throw new Error(`Unknown job type: ${job.type}`);

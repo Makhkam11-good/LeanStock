@@ -34,12 +34,12 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Companies", path: "/companies", icon: Building2, roles: ["SYSTEM_ADMIN"] },
-  { label: "Users", path: "/users", icon: Users, roles: ["SYSTEM_ADMIN", "MANAGER"] },
+  { label: "Users", path: "/users", icon: Users, roles: ["SYSTEM_ADMIN", "COMPANY_ADMIN"] },
   { label: "Roles", path: "/roles", icon: ShieldCheck },
   { label: "Warehouses", path: "/warehouses", icon: Warehouse },
   { label: "Products", path: "/products", icon: Package },
   { label: "Inventory", path: "/inventory", icon: Boxes },
-  { label: "Movements", path: "/movements", icon: Truck, roles: ["SYSTEM_ADMIN", "MANAGER", "WAREHOUSE_OPERATOR"] },
+  { label: "Movements", path: "/movements", icon: Truck, roles: ["SYSTEM_ADMIN", "COMPANY_ADMIN", "MANAGER", "WAREHOUSE_OPERATOR"] },
   { label: "Orders", path: "/orders", icon: ClipboardList },
   { label: "Reports", path: "/reports", icon: BarChart3 },
   { label: "Settings", path: "/settings", icon: Settings },
@@ -121,7 +121,7 @@ export function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen overflow-x-hidden bg-slate-100">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-slate-200 bg-white lg:block">
         <SidebarContent />
       </aside>
@@ -146,7 +146,7 @@ export function AppLayout() {
         </div>
       ) : null}
 
-      <div className="lg:pl-72">
+      <div className="min-w-0 lg:pl-72">
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
           <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
             <button
@@ -169,7 +169,7 @@ export function AppLayout() {
           </div>
         </header>
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8">
+        <main className="min-w-0 max-w-full overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
           <Outlet />
         </main>
       </div>
