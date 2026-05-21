@@ -35,6 +35,6 @@ USER appuser
 EXPOSE 3000 5000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "const http=require('http');const port=process.env.PORT||process.env.APP_PORT||3000;const req=http.get({host:'127.0.0.1',port,path:'/health',timeout:3000},res=>process.exit(res.statusCode<500?0:1));req.on('error',()=>process.exit(1));req.on('timeout',()=>process.exit(1));"
+  CMD node -e "const http=require('http');const ports=[process.env.PORT,process.env.APP_PORT,5000,3000].filter(Boolean);let i=0;function check(){const port=Number(ports[i++]);if(!port)return process.exit(1);const req=http.get({host:'127.0.0.1',port,path:'/health',timeout:2000},res=>process.exit(res.statusCode<500?0:1));req.on('error',check);req.on('timeout',()=>{req.destroy();check();});}check();"
 
 CMD ["node", "src/startService.js"]

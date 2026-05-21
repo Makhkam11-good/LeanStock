@@ -23,11 +23,8 @@ function resolveListenPorts() {
   const ports = [
     normalizePort(APP_PORT),
     normalizePort(process.env.PORT),
+    5000,
   ];
-
-  if (isDokkuRuntime()) {
-    ports.push(5000);
-  }
 
   return [...new Set(ports.filter(Boolean))];
 }

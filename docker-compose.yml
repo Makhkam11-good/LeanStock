@@ -9,7 +9,7 @@ services:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
       SERVICE_ROLE: api
-      NODE_ENV: ${ENVIRONMENT:-development}
+      NODE_ENV: ${NODE_ENV:-${ENVIRONMENT:-development}}
       APP_PORT: ${APP_PORT:-}
       BACKEND_PORT: ${BACKEND_PORT:-3000}
       APP_HOST: 0.0.0.0
@@ -55,8 +55,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    volumes:
-      - ./logs:/app/logs
     networks:
       - leanstock-network
 
@@ -69,7 +67,7 @@ services:
     command: node src/startService.js
     environment:
       SERVICE_ROLE: worker
-      NODE_ENV: ${ENVIRONMENT:-development}
+      NODE_ENV: ${NODE_ENV:-${ENVIRONMENT:-development}}
       APP_PORT: ${APP_PORT:-}
       BACKEND_PORT: ${BACKEND_PORT:-3000}
       APP_HOST: 0.0.0.0
@@ -105,7 +103,7 @@ services:
           "CMD",
           "node",
           "-e",
-          "const net=require('net');const s=net.createConnection(6379,'redis');s.on('connect',()=>process.exit(0));s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000);",
+          "const http=require('http');const ports=[process.env.PORT,process.env.APP_PORT,5000,3000].filter(Boolean);let i=0;function check(){const port=Number(ports[i++]);if(!port)return process.exit(1);const req=http.get({host:'127.0.0.1',port,path:'/health',timeout:1500},res=>process.exit(res.statusCode<500?0:1));req.on('error',check);req.on('timeout',()=>{req.destroy();check();});}check();",
         ]
       interval: 30s
       timeout: 5s

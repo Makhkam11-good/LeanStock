@@ -40,12 +40,9 @@ function resolveHealthPorts() {
     normalizePort(process.env.PORT),
     normalizePort(process.env.APP_PORT),
     normalizePort(process.env.WORKER_HEALTH_PORT),
+    5000,
     3000,
   ];
-
-  if (isDokkuRuntime()) {
-    ports.push(5000);
-  }
 
   return [...new Set(ports.filter(Boolean))];
 }
