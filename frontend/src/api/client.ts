@@ -4,12 +4,20 @@ import type { ApiErrorBody, ApiResponse, RefreshResponse } from "../types/api";
 function resolveApiBaseUrl() {
   const configured = import.meta.env.VITE_API_BASE_URL;
 
-  if (configured && !configured.includes("localhost") && !configured.includes("127.0.0.1")) {
+  if (configured && configured.startsWith("http") && !configured.includes("localhost") && !configured.includes("127.0.0.1")) {
     return configured.replace(/\/$/, "");
   }
 
   if (typeof window !== "undefined") {
-    const { protocol, hostname } = window.location;
+    const { origin, protocol, hostname } = window.location;
+
+    if (configured?.startsWith("/")) {
+      return `${origin}${configured}`.replace(/\/$/, "");
+    }
+
+    if (!hostname.includes("localhost") && hostname !== "127.0.0.1") {
+      return `${origin}/api/v1`;
+    }
 
     if (hostname.includes("-frontend")) {
       return `${protocol}//${hostname.replace("-frontend", "-api")}/api/v1`;

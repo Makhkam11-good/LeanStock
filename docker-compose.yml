@@ -121,11 +121,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api/v1}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
     container_name: leanstock-frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-3001}:80"
+    environment:
+      API_PROXY_URL: ${API_PROXY_URL:-${MAKHKAM11_GOOD_LEANSTOCK_API_URL:-http://api:3000}}
     depends_on:
       - api
     networks:
