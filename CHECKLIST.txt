@@ -1,14 +1,120 @@
-[ ] Application is LIVE on dashboard.deployrocks.com (or any other free cloud platform) with working public URL
-[x] docker compose up boots entire stack (backend + frontend + postgres + redis)
-[x] pytest / jest runs and passes with full test suite
-[x] Swagger UI / API docs is accessible locally and covers implemented endpoints
-[x] All auth endpoints work locally: register, login, logout, refresh, RBAC protected routes
-[ ] Email verification sends REAL email on deployed signup using 3rd party service
-[x] Password reset queues email with working reset link
-[x] At least 3 business event emails are implemented and queued via background worker
-[x] Frontend demo consumes real backend API and demonstrates major workflows
-[x] All core LeanStock business logic endpoints are implemented and testable
-[x] Background workers are configured and process Redis jobs
-[x] No raw SQL queries exist in application code
-[ ] Postman collection with ALL endpoints loaded in separate tabs ready for defense
-[x] I am the sole author of the architectural decisions in this code
+LeanStock Final Project Self-Verification Checklist
+
+[x] GitHub repository is public/instructor-accessible and contains the complete backend + frontend codebase.
+[x] Application is LIVE on a free cloud platform because DeployRocks was unreliable for this project.
+    Frontend: https://makhkam11-leanstock-frontend.onrender.com
+    API: https://makhkam11-leanstock-api.onrender.com
+    Worker: https://makhkam11-leanstock-worker.onrender.com
+[x] DEPLOYED_URL.txt contains the live frontend URL.
+[ ] VIDEO_LINK.txt contains the final defense video link.
+    Current status: placeholder only. Replace before submission.
+
+Required files/directories
+[x] docker-compose.yml exists and orchestrates backend + frontend + PostgreSQL + Redis + worker.
+[x] .env.example exists and documents local/production variables, including rubric aliases.
+[x] README.md exists with setup, architecture, testing, and deployment notes.
+[x] openapi.yaml exists in repo root.
+[x] prisma/migrations exists with Prisma migration history.
+[x] migrations/ exists for rubric compatibility.
+[x] tests/ exists with unit and integration tests.
+[x] frontend/ exists with the React demo frontend.
+[x] CHECKLIST.txt exists.
+[x] DEPLOYED_URL.txt exists.
+
+Deployment and health
+[x] Live frontend loads successfully.
+[x] Live API /health returns ok and db connected.
+[x] Live worker /health returns ok.
+[x] Swagger UI / API docs are accessible at the deployed API /docs endpoint.
+[x] Render environment variables are configured for production: DATABASE_URL, REDIS_URL, JWT secrets, CORS, frontend URL, email provider.
+
+Authentication and security
+[x] Registration/signup creates an inactive tenant and an unverified company admin.
+[x] Email verification sends REAL email through Brevo transactional email, queued by Redis worker.
+[x] Verification link activates the user and tenant.
+[x] Unverified users are blocked from login/protected workflows.
+[x] Login works with JWT access + refresh tokens.
+[x] Logout and refresh token rotation are implemented.
+[x] Password reset queues a real email with reset link through the same worker/provider path.
+[x] RBAC middleware protects business endpoints and returns 403 for wrong roles.
+[x] Auth rate limiting is enabled.
+[x] Production CORS is configured for the deployed frontend, not wildcard.
+[x] No plaintext passwords; bcrypt hashing is used.
+[x] Secrets are externalized through environment variables.
+
+LeanStock business requirements
+[x] Multi-tenant product catalog CRUD is implemented.
+[x] Tenant isolation is enforced with tenant_id scoping in service queries.
+[x] Warehouse and location CRUD are implemented.
+[x] Inventory receive, sell, transfer, reserve, and release workflows are implemented.
+[x] Inventory mutations use Redis locks plus Prisma transactions for atomicity.
+[x] Reservation system has TTL and release logic.
+[x] Dead stock decay engine exists with configurable rules and worker/trigger support.
+[x] Reorder forecasting endpoint returns suggestions.
+[x] Supplier workflow is implemented.
+[x] Purchase order workflow is implemented: create, submit, approve, receive, cancel.
+[x] Stock movement history endpoints are implemented.
+[x] At least 3 business/auth email events are implemented and queued asynchronously:
+    - signup verification
+    - password reset
+    - account verified confirmation
+    - inventory transfer receipt
+    - purchase order confirmation
+    - dead stock / low stock style operational notifications
+
+API documentation and quality
+[x] Swagger UI is live at the deployed API /docs endpoint.
+[x] Root openapi.yaml is present.
+[x] Unit test verifies OpenAPI coverage for implemented routes.
+[x] Error responses use standardized JSON error objects.
+[x] Cursor pagination helpers are used for list endpoints.
+[x] Request validation uses Zod schemas.
+
+Background processing
+[x] Redis-backed worker is deployed and running.
+[x] Email sending is asynchronous through Redis queue and worker.
+[x] Dead stock decay queue/job path exists.
+[x] Job visibility endpoint exists for queued/completed/failed jobs.
+[x] Cron-related schedule is documented/configured.
+
+Testing
+[x] Full Jest suite runs and passes locally.
+    Last run: 6 test suites passed, 119 tests passed.
+[x] Unit tests cover pure business logic and OpenAPI quality.
+[x] Integration tests cover auth, admin, and inventory transaction workflows.
+[x] Auth integration tests cover protected routes and verification behavior.
+[x] Email tests verify jobs are enqueued/mocked in test mode.
+[x] Quality test confirms no raw SQL usage in application code.
+
+Frontend demo
+[x] Frontend consumes the live backend API; no mocked data is used in production demo.
+[x] Frontend supports signup, verification flow, login, logout, protected pages, and role-aware navigation.
+[x] Frontend exposes major LeanStock workflows: companies/admin, users, warehouses, locations, products, inventory, movements, orders, reports, settings/profile.
+[x] Frontend displays backend validation/auth errors to users.
+[x] Frontend is containerized and deployed.
+
+Defense preparation
+[ ] Postman collection/tabs with ALL important endpoints are ready before oral defense.
+    Prepare auth + products + warehouses + inventory + purchase orders + reports + jobs.
+[x] Live frontend URL is ready to open before defense.
+[x] Real Brevo email proof is ready: Gmail received verification and verified confirmation emails.
+[x] Brevo activity shows request/delivered/opened/click events.
+[x] Seed/demo accounts exist for fallback demo:
+    admin@leanstock.com / Admin123
+    manager@leanstock.com / Manager123
+    operator@leanstock.com / Operator123
+    auditor@leanstock.com / Auditor123
+[x] I am the sole author of the architectural decisions in this code.
+
+Automatic 50% deduction risk check
+[x] GitHub repository exists; submission is not ZIP-only.
+[x] No raw SQL queries are used in application code; Prisma ORM is used.
+[x] Authentication layer is implemented and working.
+[x] Email verification is real third-party delivery through Brevo, not mock/fake in production.
+[x] Application is deployed and public URLs work.
+[x] Frontend is present, deployed, functional, and consumes the real API.
+
+Remaining manual tasks before final submission
+[ ] Replace VIDEO_LINK.txt placeholder with the actual final defense video link.
+[ ] Prepare/open Postman tabs for the oral defense.
+[ ] Optionally rotate the Brevo API key after defense because it was exposed during setup.
