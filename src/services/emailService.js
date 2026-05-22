@@ -5,6 +5,7 @@ const {
   EMAIL_FROM,
   EMAIL_OVERRIDE_TO,
   SENDGRID_API_KEY,
+  BREVO_API_KEY,
   QUEUE_EMAIL_NAME,
 } = require('../config/env');
 const { enqueueJob } = require('../jobs/redisQueue');
@@ -34,10 +35,18 @@ async function sendEmailNow(message) {
     return { provider: 'mock', accepted: [resolvedMessage.to] };
   }
 
+  if (EMAIL_PROVIDER === 'brevo') {
+    return sendBrevoEmail(resolvedMessage);
+  }
+
   if (EMAIL_PROVIDER !== 'sendgrid') {
     throw new Error(`Unsupported EMAIL_PROVIDER: ${EMAIL_PROVIDER}`);
   }
 
+  return sendSendGridEmail(resolvedMessage);
+}
+
+async function sendSendGridEmail(message) {
   if (!SENDGRID_API_KEY) {
     throw new Error('SENDGRID_API_KEY is required for SendGrid email delivery');
   }
@@ -49,12 +58,12 @@ async function sendEmailNow(message) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: resolvedMessage.to }] }],
-      from: parseFromAddress(resolvedMessage.from),
-      subject: resolvedMessage.subject,
+      personalizations: [{ to: [{ email: message.to }] }],
+      from: parseFromAddress(message.from),
+      subject: message.subject,
       content: [
-        { type: 'text/plain', value: resolvedMessage.text || stripHtml(resolvedMessage.html || '') },
-        { type: 'text/html', value: resolvedMessage.html || resolvedMessage.text || '' },
+        { type: 'text/plain', value: message.text || stripHtml(message.html || '') },
+        { type: 'text/html', value: message.html || message.text || '' },
       ],
     }),
   });
@@ -65,6 +74,37 @@ async function sendEmailNow(message) {
   }
 
   return { provider: 'sendgrid', status: response.status };
+}
+
+async function sendBrevoEmail(message) {
+  if (!BREVO_API_KEY) {
+    throw new Error('BREVO_API_KEY is required for Brevo email delivery');
+  }
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': BREVO_API_KEY,
+      accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: parseFromAddress(message.from),
+      to: [{ email: message.to }],
+      subject: message.subject,
+      textContent: message.text || stripHtml(message.html || ''),
+      htmlContent: message.html || `<p>${escapeHtml(message.text || '')}</p>`,
+      tags: [message.event_type || 'leanstock'],
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Brevo delivery failed with ${response.status}: ${body}`);
+  }
+
+  const body = await response.json().catch(() => ({}));
+  return { provider: 'brevo', status: response.status, messageId: body.messageId };
 }
 
 function applyRecipientOverride(message) {

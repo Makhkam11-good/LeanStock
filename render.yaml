@@ -55,6 +55,8 @@ services:
         value: sendgrid
       - key: SENDGRID_API_KEY
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
       - key: EMAIL_FROM
         sync: false
       - key: EMAIL_OVERRIDE_TO
@@ -134,6 +136,8 @@ services:
       - key: EMAIL_PROVIDER
         value: sendgrid
       - key: SENDGRID_API_KEY
+        sync: false
+      - key: BREVO_API_KEY
         sync: false
       - key: EMAIL_FROM
         sync: false

@@ -91,6 +91,10 @@ if (!hasEnvValue('EMAIL_PROVIDER') && hasEnvValue('SENDGRID_API_KEY')) {
   process.env.EMAIL_PROVIDER = 'sendgrid';
 }
 
+if (process.env.EMAIL_PROVIDER === 'brevo' && !hasEnvValue('BREVO_API_KEY') && hasEnvValue('EMAIL_API_KEY')) {
+  process.env.BREVO_API_KEY = process.env.EMAIL_API_KEY;
+}
+
 const REQUIRED_VARS = [
   'DATABASE_URL',
   'JWT_SECRET',
@@ -134,13 +138,24 @@ function validateEnv() {
       'APP_BASE_URL',
       'REDIS_URL',
       'EMAIL_FROM',
-      'SENDGRID_API_KEY',
     ];
 
     for (const key of productionRequired) {
       if (!process.env[key]) {
         errors.push(`Missing production environment variable: ${key}`);
       }
+    }
+
+    if (process.env.EMAIL_PROVIDER === 'sendgrid' && !process.env.SENDGRID_API_KEY) {
+      errors.push('Missing production environment variable: SENDGRID_API_KEY');
+    }
+
+    if (process.env.EMAIL_PROVIDER === 'brevo' && !process.env.BREVO_API_KEY) {
+      errors.push('Missing production environment variable: BREVO_API_KEY');
+    }
+
+    if (!['sendgrid', 'brevo'].includes(process.env.EMAIL_PROVIDER)) {
+      errors.push('EMAIL_PROVIDER must be sendgrid or brevo in production');
     }
 
     if (process.env.CORS_ORIGIN === '*') {
@@ -204,6 +219,7 @@ module.exports = {
   EMAIL_FROM: process.env.EMAIL_FROM || 'LeanStock <no-reply@leanstock.local>',
   EMAIL_OVERRIDE_TO: process.env.EMAIL_OVERRIDE_TO || '',
   SENDGRID_API_KEY: process.env.SENDGRID_API_KEY,
+  BREVO_API_KEY: process.env.BREVO_API_KEY,
 
   EMAIL_VERIFICATION_TTL_MINUTES: parseInt(process.env.EMAIL_VERIFICATION_TTL_MINUTES || '1440', 10),
   PASSWORD_RESET_TTL_MINUTES: parseInt(process.env.PASSWORD_RESET_TTL_MINUTES || '30', 10),
