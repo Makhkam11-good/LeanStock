@@ -57,6 +57,8 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
+      - key: EMAIL_OVERRIDE_TO
+        sync: false
       - key: CRON_ENABLED
         value: "true"
       - key: APP_LOG_LEVEL
@@ -134,6 +136,8 @@ services:
       - key: SENDGRID_API_KEY
         sync: false
       - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_OVERRIDE_TO
         sync: false
       - key: CRON_ENABLED
         value: "true"

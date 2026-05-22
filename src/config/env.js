@@ -202,6 +202,7 @@ module.exports = {
 
   EMAIL_PROVIDER: process.env.EMAIL_PROVIDER || 'mock',
   EMAIL_FROM: process.env.EMAIL_FROM || 'LeanStock <no-reply@leanstock.local>',
+  EMAIL_OVERRIDE_TO: process.env.EMAIL_OVERRIDE_TO || '',
   SENDGRID_API_KEY: process.env.SENDGRID_API_KEY,
 
   EMAIL_VERIFICATION_TTL_MINUTES: parseInt(process.env.EMAIL_VERIFICATION_TTL_MINUTES || '1440', 10),

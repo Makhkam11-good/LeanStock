@@ -156,6 +156,8 @@ All inventory mutations use Redis locks plus serializable Prisma `$transaction` 
 ### Email and Background Jobs
 Signup verification, password reset, low stock alerts, stock receipt, stock transfer, purchase order confirmations, and dead-stock decay alerts are enqueued through Redis. The API returns quickly, while `npm run worker` delivers emails through the configured provider. Local development uses `EMAIL_PROVIDER=mock`; production must use `EMAIL_PROVIDER=sendgrid` with `EMAIL_API_KEY` / `SENDGRID_API_KEY`.
 
+For defense demos where the provider account is still warming up, `EMAIL_OVERRIDE_TO` can route all real provider emails to one controlled inbox while preserving the original recipient in the message body. This is not a mock: verification tokens and password reset links are still generated normally, queued through Redis, and delivered by the configured provider.
+
 ### Reservation TTL
 Reservations create explicit `InventoryReservation` rows with an `expires_at` timestamp. A scheduled Redis job runs every five minutes by default and releases expired reservations automatically.
 
@@ -214,6 +216,7 @@ See `.env.example` for all variables. Critical ones that **must** be set:
 - `APP_BASE_URL` - Public API base URL used for API callbacks and production validation
 - `FRONTEND_URL` - Public frontend URL used in verification and password reset email links
 - `EMAIL_FROM` / `SENDGRID_API_KEY` - real email delivery configuration
+- `EMAIL_OVERRIDE_TO` - optional controlled inbox for demo delivery fallback
 - Rubric aliases are also supported: `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET_KEY`, `EMAIL_API_KEY`, `EMAIL_FROM_ADDRESS`, `BACKEND_PORT`, `FRONTEND_PORT`, `ENVIRONMENT`, and `CORS_ORIGINS`
 
 The app **refuses to start** if critical secrets are missing.
